@@ -6,11 +6,12 @@ import confetti from 'canvas-confetti';
 import { HandCoins, Plus, CheckCircle2, Clock, Trash2, ArrowUpRight, ArrowDownLeft } from 'lucide-react';
 
 export const DebtsView: React.FC = () => {
-  const { debts, addDebt, payDebt, deleteDebt, hideBalance } = useFinance();
+  const { debts, addDebt, payDebt, deleteDebt, hideBalance, wallets } = useFinance();
   const [activeTab, setActiveTab] = useState<'receivable' | 'payable'>('receivable');
   const [showAddModal, setShowAddModal] = useState(false);
   const [activeDebtForPay, setActiveDebtForPay] = useState<DebtItem | null>(null);
   const [payAmount, setPayAmount] = useState('');
+  const [payWalletId, setPayWalletId] = useState('');
 
   // Form State
   const [personName, setPersonName] = useState('');
@@ -57,7 +58,7 @@ export const DebtsView: React.FC = () => {
     const payment = parseInt(payAmount.replace(/\D/g, ''), 10) || 0;
     if (payment <= 0) return;
 
-    payDebt(activeDebtForPay.id, payment);
+    payDebt(activeDebtForPay.id, payment, payWalletId || wallets[0]?.id);
     confetti({
       particleCount: 40,
       spread: 60,
@@ -65,6 +66,7 @@ export const DebtsView: React.FC = () => {
     });
 
     setPayAmount('');
+    setPayWalletId('');
     setActiveDebtForPay(null);
   };
 
@@ -254,6 +256,23 @@ export const DebtsView: React.FC = () => {
                 >
                   Lunasi Sekaligus ({formatIDR(activeDebtForPay.amount - activeDebtForPay.paidAmount)})
                 </button>
+              </div>
+
+              <div>
+                <label className="text-[11px] font-semibold text-zinc-400 block mb-1">
+                  {activeDebtForPay.type === 'payable' ? 'Sumber Dompet (Keluar)' : 'Dompet Penerima (Masuk)'}
+                </label>
+                <select
+                  value={payWalletId || wallets[0]?.id}
+                  onChange={e => setPayWalletId(e.target.value)}
+                  className="w-full min-h-[44px] px-3.5 py-2.5 rounded-xl bg-zinc-100 dark:bg-zinc-800 text-[16px] sm:text-xs text-zinc-900 dark:text-zinc-100 focus:outline-none"
+                >
+                  {wallets.map(w => (
+                    <option key={w.id} value={w.id}>
+                      {w.icon} {w.name}
+                    </option>
+                  ))}
+                </select>
               </div>
 
               <div className="pt-2 flex gap-2">

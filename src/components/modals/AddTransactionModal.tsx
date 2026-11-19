@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useFinance } from '../../context/FinanceContext';
 import { Transaction, TransactionType, CurrencyCode } from '../../types';
 import { getTodayDateString, formatIDR } from '../../utils/format';
@@ -14,6 +14,10 @@ import {
   MessageSquare,
   Sparkles,
   Mic,
+  Calculator,
+  Plus,
+  Hash,
+  FileCheck,
 } from 'lucide-react';
 
 interface AddTransactionModalProps {
@@ -23,13 +27,37 @@ interface AddTransactionModalProps {
   editingTransaction?: Transaction | null;
 }
 
+// Safe simple arithmetic evaluator for +, -, *, /
+function evaluateMathExpression(expr: string): number {
+  const cleaned = expr.replace(/[^0-9.+\-*/]/g, '');
+  if (!cleaned) return 0;
+  try {
+    // Tokenize numbers and basic operators
+    const tokens = cleaned.match(/(\d+\.?\d*|[+\-*/])/g);
+    if (!tokens || tokens.length === 0) return 0;
+    let total = parseFloat(tokens[0]) || 0;
+    for (let i = 1; i < tokens.length; i += 2) {
+      const op = tokens[i];
+      const nextVal = parseFloat(tokens[i + 1]);
+      if (isNaN(nextVal)) break;
+      if (op === '+') total += nextVal;
+      else if (op === '-') total = Math.max(0, total - nextVal);
+      else if (op === '*') total *= nextVal;
+      else if (op === '/') total = nextVal !== 0 ? total / nextVal : total;
+    }
+    return Math.round(total);
+  } catch {
+    return parseFloat(cleaned) || 0;
+  }
+}
+
 export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
   isOpen,
   onClose,
   defaultType = 'expense',
   editingTransaction = null,
 }) => {
-  const { categories, wallets, addTransaction, updateTransaction } = useFinance();
+  const { categories, wallets, addTransaction, updateTransaction, addCategory } = useFinance();
 
   const [type, setType] = useState<TransactionType>(defaultType);
   const [currency, setCurrency] = useState<CurrencyCode>('IDR');
@@ -39,6 +67,18 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
   const [targetWalletId, setTargetWalletId] = useState<string>('');
   const [date, setDate] = useState<string>(getTodayDateString());
   const [note, setNote] = useState<string>('');
+
+  // Batch 62: Built-in Math Calculator Bar
+  const [showCalcPad, setShowCalcPad] = useState(false);
+
+  // Batch 63: Hashtags & Reimburse Flag
+  const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [isReimburse, setIsReimburse] = useState<boolean>(false);
+
+  // Batch 65: Quick Inline New Category Creator
+  const [showInlineNewCat, setShowInlineNewCat] = useState(false);
+  const [newCatName, setNewCatName] = useState('');
+  const [newCatColor, setNewCatColor] = useState('#10B981');
 
   // F-01 & F-03: Smart NLP & Real Web Speech Voice Input
   const [smartTextInput, setSmartTextInput] = useState('');
@@ -67,16 +107,22 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
       );
       setDate(editingTransaction.date || getTodayDateString());
       setNote(editingTransaction.note || '');
+      setSelectedTags(editingTransaction.tags || []);
+      setIsReimburse(Boolean(editingTransaction.isReimburse));
       setSmartTextInput('');
       setDetectedBadge(null);
+      setShowInlineNewCat(false);
     } else {
       setType(defaultType);
       setCurrency('IDR');
       setAmountStr('');
       setDate(getTodayDateString());
       setNote('');
+      setSelectedTags([]);
+      setIsReimburse(false);
       setSmartTextInput('');
       setDetectedBadge(null);
+      setShowInlineNewCat(false);
     }
   }, [isOpen, defaultType, editingTransaction, wallets]);
 
@@ -100,15 +146,57 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
     }
   }, [wallets, walletId, targetWalletId]);
 
+  const hasMathOperator = useMemo(() => /[+\-*/]/.test(amountStr), [amountStr]);
+  const numericInputAmount = useMemo(() => evaluateMathExpression(amountStr), [amountStr]);
+
   if (!isOpen) return null;
 
-  const numericInputAmount = parseFloat(amountStr.replace(/[^0-9.]/g, '')) || 0;
   const equivalentIDR =
     currency === 'IDR' ? numericInputAmount : convertToIDR(numericInputAmount, currency);
 
   const handleQuickAddAmount = (addVal: number) => {
+    sounds.playPop();
+    sounds.vibrate(10);
     const current = numericInputAmount;
     setAmountStr(String(Math.round(current + addVal)));
+  };
+
+  const handleAppendOperator = (op: string) => {
+    sounds.playPop();
+    sounds.vibrate(10);
+    if (!amountStr) return;
+    if (op === '=') {
+      setAmountStr(String(numericInputAmount));
+      return;
+    }
+    const lastChar = amountStr.slice(-1);
+    if (/[+\-*/]/.test(lastChar)) {
+      setAmountStr(amountStr.slice(0, -1) + op);
+    } else {
+      setAmountStr(amountStr + op);
+    }
+  };
+
+  const handleToggleTag = (tag: string) => {
+    sounds.playPop();
+    sounds.vibrate(10);
+    setSelectedTags(prev =>
+      prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag]
+    );
+  };
+
+  const handleCreateInlineCategory = () => {
+    if (!newCatName.trim() || type === 'transfer') return;
+    sounds.playSuccess();
+    sounds.vibrate(20);
+    addCategory({
+      name: newCatName.trim(),
+      color: newCatColor,
+      icon: type === 'income' ? 'Coins' : 'ShoppingBag',
+      type: type === 'income' ? 'income' : 'expense',
+    });
+    setNewCatName('');
+    setShowInlineNewCat(false);
   };
 
   // Process smart natural language text (F-01)
@@ -136,7 +224,7 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
     }
   };
 
-  // F-03: Real Web Speech API Dictation (No more fake random data!)
+  // F-03: Real Web Speech API Dictation
   const handleVoiceTrigger = () => {
     const SpeechRecognitionAPI =
       (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
@@ -222,6 +310,12 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
         date,
         time,
         note: finalNote,
+        tags: selectedTags.length > 0 ? selectedTags : undefined,
+        isReimburse: type === 'expense' ? isReimburse : false,
+        reimburseStatus:
+          type === 'expense' && isReimburse
+            ? editingTransaction.reimburseStatus || 'pending'
+            : undefined,
       });
       sounds.playSuccess();
       sounds.vibrate(30);
@@ -237,6 +331,9 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
         date,
         time,
         note: finalNote,
+        tags: selectedTags.length > 0 ? selectedTags : undefined,
+        isReimburse: type === 'expense' ? isReimburse : false,
+        reimburseStatus: type === 'expense' && isReimburse ? 'pending' : undefined,
       });
 
       sounds.playSuccess();
@@ -255,6 +352,8 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
     setAmountStr('');
     setNote('');
     setSmartTextInput('');
+    setSelectedTags([]);
+    setIsReimburse(false);
     onClose();
   };
 
@@ -262,13 +361,13 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
     sounds.playPop();
     sounds.vibrate(10);
     setType(newType);
+    setShowInlineNewCat(false);
   };
 
   const handleSelectCategory = (id: string) => {
     sounds.playPop();
     sounds.vibrate(12);
     setCategoryId(id);
-    // Dismiss virtual keyboard if active to prevent Safari zooming/viewport distortion
     if (typeof document !== 'undefined' && document.activeElement instanceof HTMLElement) {
       document.activeElement.blur();
     }
@@ -289,6 +388,7 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
       ? ['Makan Siang', 'Kopi', 'Bensin', 'Gojek', 'Belanja', 'Nonton']
       : ['Gaji', 'Bonus', 'Freelance', 'Dividen', 'Cashback'];
 
+  const presetTags = ['#kantor', '#keluarga', '#liburan', '#darurat', '#langganan'];
   const currencies: CurrencyCode[] = ['IDR', 'USD', 'SGD', 'JPY', 'EUR', 'MYR'];
 
   return (
@@ -438,12 +538,29 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
             </button>
           </div>
 
-          {/* Large Amount Input + Currency Selector */}
+          {/* Large Amount Input + Currency Selector + Batch 62 Math Calculator */}
           <div className="py-2.5 px-4 rounded-2xl bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200/80 dark:border-zinc-800">
             <div className="flex items-center justify-between mb-1">
-              <span className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400">
-                Nominal
-              </span>
+              <div className="flex items-center gap-1.5">
+                <span className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400">
+                  Nominal
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    sounds.playPop();
+                    setShowCalcPad(prev => !prev);
+                  }}
+                  className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-bold transition-all ${
+                    showCalcPad || hasMathOperator
+                      ? 'bg-emerald-500 text-white'
+                      : 'bg-zinc-200/80 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-300'
+                  }`}
+                >
+                  <Calculator className="w-3 h-3" />
+                  <span>Hitung</span>
+                </button>
+              </div>
 
               <div className="flex items-center gap-1 bg-zinc-200 dark:bg-zinc-700/60 p-0.5 rounded-lg text-[10px] font-bold">
                 {currencies.map(c => (
@@ -477,6 +594,48 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
               />
             </div>
 
+            {/* Live Evaluated Result if expression contains +, -, *, / */}
+            {hasMathOperator && numericInputAmount > 0 && (
+              <div className="flex items-center justify-center gap-2 pb-1">
+                <span className="text-xs font-extrabold text-emerald-500 tabular-nums">
+                  = {currency === 'IDR' ? formatIDR(numericInputAmount) : numericInputAmount}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => handleAppendOperator('=')}
+                  className="px-2 py-0.5 rounded-md bg-emerald-500 text-white text-[10px] font-bold"
+                >
+                  Terapkan (=)
+                </button>
+              </div>
+            )}
+
+            {/* Batch 62: Quick Math Operator Bar */}
+            {showCalcPad && (
+              <div className="grid grid-cols-5 gap-1.5 my-2 pt-1.5 border-t border-zinc-200/60 dark:border-zinc-700/60 animate-in fade-in duration-150">
+                {[
+                  { label: '+ Tambah', op: '+' },
+                  { label: '- Kurang', op: '-' },
+                  { label: '× Kali', op: '*' },
+                  { label: '÷ Bagi', op: '/' },
+                  { label: '= Hasil', op: '=' },
+                ].map(item => (
+                  <button
+                    key={item.op}
+                    type="button"
+                    onClick={() => handleAppendOperator(item.op)}
+                    className={`min-h-[36px] rounded-xl text-xs font-bold transition-all active:scale-95 ${
+                      item.op === '='
+                        ? 'bg-emerald-500 text-white shadow-xs'
+                        : 'bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-zinc-800 dark:text-zinc-200'
+                    }`}
+                  >
+                    {item.label}
+                  </button>
+                ))}
+              </div>
+            )}
+
             {currency !== 'IDR' && numericInputAmount > 0 && (
               <p className="text-xs text-center text-emerald-500 font-semibold pb-1 tabular-nums">
                 ≈ {formatIDR(equivalentIDR)} (Kurs 1 {currency} ={' '}
@@ -509,12 +668,68 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
             )}
           </div>
 
-          {/* Categories Grid */}
+          {/* Categories Grid + Batch 65 Inline "+ Baru" */}
           {type !== 'transfer' && (
             <div>
-              <label className="text-xs font-semibold text-zinc-500 uppercase tracking-wider block mb-2">
-                Pilih Kategori
-              </label>
+              <div className="flex items-center justify-between mb-2">
+                <label className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">
+                  Pilih Kategori
+                </label>
+                <button
+                  type="button"
+                  onClick={() => {
+                    sounds.playPop();
+                    setShowInlineNewCat(prev => !prev);
+                  }}
+                  className="text-[11px] font-bold text-emerald-500 hover:text-emerald-400 flex items-center gap-0.5"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>{showInlineNewCat ? 'Tutup' : 'Kategori Baru'}</span>
+                </button>
+              </div>
+
+              {/* Inline New Category Mini Form */}
+              {showInlineNewCat && (
+                <div className="mb-3 p-3 rounded-2xl bg-zinc-100 dark:bg-zinc-800/80 border border-emerald-500/30 space-y-2.5 animate-in fade-in duration-150">
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      placeholder={
+                        type === 'income'
+                          ? 'Nama sumber pendapatan baru...'
+                          : 'Nama kategori pengeluaran baru...'
+                      }
+                      value={newCatName}
+                      onChange={e => setNewCatName(e.target.value)}
+                      className="flex-1 min-h-[40px] px-3 rounded-xl bg-white dark:bg-zinc-900 text-[16px] sm:text-xs font-bold text-zinc-900 dark:text-zinc-100 focus:outline-none"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleCreateInlineCategory}
+                      className="min-h-[40px] px-3.5 rounded-xl bg-emerald-500 text-white text-xs font-bold active:scale-95"
+                    >
+                      Tambah
+                    </button>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[10px] font-semibold text-zinc-400 mr-1">Warna:</span>
+                    {['#10B981', '#3B82F6', '#8B5CF6', '#F59E0B', '#EF4444', '#EC4899', '#06B6D4'].map(
+                      c => (
+                        <button
+                          key={c}
+                          type="button"
+                          onClick={() => setNewCatColor(c)}
+                          className={`w-6 h-6 rounded-full transition-transform ${
+                            newCatColor === c ? 'scale-110 ring-2 ring-emerald-500' : ''
+                          }`}
+                          style={{ backgroundColor: c }}
+                        />
+                      )
+                    )}
+                  </div>
+                </div>
+              )}
+
               <div className="grid grid-cols-4 sm:grid-cols-5 gap-2 max-h-40 overflow-y-auto p-1 no-scrollbar">
                 {availableCategories.map(cat => {
                   const isSelected = categoryId === cat.id;
@@ -535,7 +750,9 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
                     >
                       <div
                         className={`w-9 h-9 rounded-xl flex items-center justify-center mb-1 text-white shadow-sm transition-transform ${
-                          isSelected ? 'scale-110 shadow-md ring-2 ring-white/60 dark:ring-black/60' : ''
+                          isSelected
+                            ? 'scale-110 shadow-md ring-2 ring-white/60 dark:ring-black/60'
+                            : ''
                         }`}
                         style={{ backgroundColor: cat.color }}
                       >
@@ -658,17 +875,65 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
           </div>
 
           {type !== 'transfer' && (
-            <div className="flex flex-wrap gap-1.5 pt-1">
-              {quickNotes.map(qn => (
-                <button
-                  key={qn}
-                  type="button"
-                  onClick={() => setNote(qn)}
-                  className="px-2.5 py-1 rounded-full text-[10px] font-medium bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-700 active:scale-95 transition-all"
-                >
-                  +{qn}
-                </button>
-              ))}
+            <div className="space-y-2.5 pt-1">
+              {/* Quick Notes */}
+              <div className="flex flex-wrap gap-1.5">
+                {quickNotes.map(qn => (
+                  <button
+                    key={qn}
+                    type="button"
+                    onClick={() => {
+                      sounds.playPop();
+                      setNote(qn);
+                    }}
+                    className="px-2.5 py-1 rounded-full text-[10px] font-medium bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-700 active:scale-95 transition-all"
+                  >
+                    +{qn}
+                  </button>
+                ))}
+              </div>
+
+              {/* Batch 63: Hashtags & Office Reimburse Flag */}
+              <div className="flex items-center justify-between gap-2 pt-1 border-t border-zinc-100 dark:border-zinc-800/80 overflow-x-auto no-scrollbar">
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <Hash className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
+                  {presetTags.map(tag => {
+                    const active = selectedTags.includes(tag);
+                    return (
+                      <button
+                        key={tag}
+                        type="button"
+                        onClick={() => handleToggleTag(tag)}
+                        className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all active:scale-95 ${
+                          active
+                            ? 'bg-emerald-500 text-white shadow-xs'
+                            : 'bg-zinc-100 dark:bg-zinc-800/70 text-zinc-500 dark:text-zinc-400'
+                        }`}
+                      >
+                        {tag}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {type === 'expense' && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      sounds.playPop();
+                      setIsReimburse(prev => !prev);
+                    }}
+                    className={`px-2.5 py-1 rounded-lg text-[10px] font-bold flex items-center gap-1 shrink-0 transition-all active:scale-95 ${
+                      isReimburse
+                        ? 'bg-blue-500 text-white shadow-xs'
+                        : 'bg-zinc-100 dark:bg-zinc-800/70 text-zinc-500 dark:text-zinc-400'
+                    }`}
+                  >
+                    <FileCheck className="w-3 h-3" />
+                    <span>Reimburse</span>
+                  </button>
+                )}
+              </div>
             </div>
           )}
 

@@ -5,37 +5,7 @@ import { formatIDR } from '../../utils/format';
 import { TrendingUp, Plus, Trash2, ArrowUpRight, ArrowDownRight, Sparkles, Building, Landmark } from 'lucide-react';
 
 export const InvestmentsView: React.FC = () => {
-  const { totalBalance, hideBalance } = useFinance();
-
-  const [assets, setAssets] = useState<InvestmentAsset[]>([
-    {
-      id: 'inv-1',
-      name: 'Reksadana Pasar Uang & Obligasi',
-      type: 'mutual_fund',
-      investedValue: 15000000,
-      currentValue: 16120000,
-      institution: 'Bibit (Robo)',
-      color: '#059669',
-    },
-    {
-      id: 'inv-2',
-      name: 'Saham Bluechip BBCA & BBRI',
-      type: 'stocks',
-      investedValue: 12000000,
-      currentValue: 13450000,
-      institution: 'Ajaib Sekuritas',
-      color: '#3B82F6',
-    },
-    {
-      id: 'inv-3',
-      name: 'Emas Logam Mulia Antam (10g)',
-      type: 'gold',
-      investedValue: 13500000,
-      currentValue: 15200000,
-      institution: 'Brankas Antam',
-      color: '#F59E0B',
-    },
-  ]);
+  const { totalBalance, hideBalance, investments, addInvestment, deleteInvestment } = useFinance();
 
   const [showAddModal, setShowAddModal] = useState(false);
   const [name, setName] = useState('');
@@ -45,8 +15,8 @@ export const InvestmentsView: React.FC = () => {
   const [type, setType] = useState<InvestmentAsset['type']>('mutual_fund');
 
   // Calculations
-  const totalInvested = assets.reduce((sum, a) => sum + a.investedValue, 0);
-  const totalCurrent = assets.reduce((sum, a) => sum + a.currentValue, 0);
+  const totalInvested = investments.reduce((sum, a) => sum + a.investedValue, 0);
+  const totalCurrent = investments.reduce((sum, a) => sum + a.currentValue, 0);
   const totalGain = totalCurrent - totalInvested;
   const totalGainPercent = totalInvested > 0 ? ((totalGain / totalInvested) * 100).toFixed(1) : '0';
 
@@ -56,17 +26,15 @@ export const InvestmentsView: React.FC = () => {
     e.preventDefault();
     if (!name.trim()) return;
 
-    const newAsset: InvestmentAsset = {
-      id: `inv-${Date.now()}`,
+    addInvestment({
       name: name.trim(),
       type,
       investedValue: parseInt(investedValue.replace(/\D/g, ''), 10) || 0,
       currentValue: parseInt(currentValue.replace(/\D/g, ''), 10) || 0,
       institution: institution.trim() || 'Mandiri',
       color: type === 'stocks' ? '#3B82F6' : type === 'gold' ? '#F59E0B' : '#10B981',
-    };
+    });
 
-    setAssets(prev => [...prev, newAsset]);
     setName('');
     setInvestedValue('');
     setCurrentValue('');
@@ -75,7 +43,7 @@ export const InvestmentsView: React.FC = () => {
   };
 
   const handleDeleteAsset = (id: string) => {
-    setAssets(prev => prev.filter(a => a.id !== id));
+    deleteInvestment(id);
   };
 
   return (
@@ -135,7 +103,7 @@ export const InvestmentsView: React.FC = () => {
 
       {/* Assets List */}
       <div className="space-y-3">
-        {assets.map(asset => {
+        {investments.map(asset => {
           const gain = asset.currentValue - asset.investedValue;
           const gainPercent =
             asset.investedValue > 0 ? ((gain / asset.investedValue) * 100).toFixed(1) : '0';

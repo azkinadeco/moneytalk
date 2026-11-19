@@ -169,6 +169,74 @@ export const MonthlyReportView: React.FC<MonthlyReportViewProps> = ({ onOpenRepo
     return { days, maxVal, peakExpenseDay, dailyAverage, daysInMonth };
   }, [selectedMonth, monthTransactions, expenseData.total]);
 
+  // Batch 66: 6-Month Historical Cashflow Comparison
+  const sixMonthsTrend = useMemo(() => {
+    const [year, month] = selectedMonth.split('-').map(Number);
+    const months: {
+      monthStr: string;
+      shortLabel: string;
+      income: number;
+      expense: number;
+    }[] = [];
+
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(year, month - 1 - i, 1);
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, '0');
+      const mStr = `${y}-${m}`;
+      const shortLabel = d.toLocaleDateString('id-ID', { month: 'short' });
+
+      let inc = 0;
+      let exp = 0;
+      for (const tx of transactions) {
+        if (tx.date.startsWith(mStr)) {
+          if (tx.type === 'income') inc += tx.amount;
+          else if (tx.type === 'expense') exp += tx.amount;
+        }
+      }
+      months.push({ monthStr: mStr, shortLabel, income: inc, expense: exp });
+    }
+
+    const maxMonthVal = Math.max(
+      ...months.map(m => Math.max(m.income, m.expense)),
+      100000
+    );
+
+    return { months, maxMonthVal };
+  }, [selectedMonth, transactions]);
+
+  // Batch 66: Expense Distribution by Wallet
+  const walletExpenseBreakdown = useMemo(() => {
+    const expenses = monthTransactions.filter(t => t.type === 'expense');
+    const total = expenses.reduce((s, t) => s + t.amount, 0);
+    const map = new Map<string, { amount: number; count: number }>();
+
+    for (const t of expenses) {
+      const cur = map.get(t.walletId) || { amount: 0, count: 0 };
+      map.set(t.walletId, { amount: cur.amount + t.amount, count: cur.count + 1 });
+    }
+
+    return Array.from(map.entries())
+      .map(([walletId, data]) => {
+        const wal = wallets.find(w => w.id === walletId) || {
+          name: 'Dompet',
+          color: '#64748B',
+          icon: 'Wallet',
+        };
+        const percentage = total > 0 ? Math.round((data.amount / total) * 100) : 0;
+        return {
+          walletId,
+          name: wal.name,
+          color: wal.color,
+          icon: wal.icon,
+          amount: data.amount,
+          count: data.count,
+          percentage,
+        };
+      })
+      .sort((a, b) => b.amount - a.amount);
+  }, [monthTransactions, wallets]);
+
   // Selected Category Transactions for Drilldown Modal
   const drilldownCategory = useMemo(() => {
     if (!selectedCategoryModal) return null;
@@ -765,6 +833,125 @@ Catat & kontrol keuangan harianmu dengan Money Talk!`;
             </div>
           );
         })()}
+      </div>
+
+      {/* BATCH 66: 6-MONTH HISTORICAL COMPARISON & WALLET BREAKDOWN */}
+      <div className="grid grid-cols-1 gap-4">
+        {/* 6-Month Cashflow Trajectory Card */}
+        <div className="p-4 rounded-3xl bg-white dark:bg-zinc-900 border border-zinc-200/80 dark:border-zinc-800 shadow-ios-sm space-y-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-sm font-extrabold text-zinc-900 dark:text-zinc-100">
+                Perbandingan 6 Bulan Terakhir
+              </h3>
+              <p className="text-[10px] text-zinc-400">
+                Ketuk bulan untuk berpindah periode laporan
+              </p>
+            </div>
+            <BarChart3 className="w-4 h-4 text-emerald-500" />
+          </div>
+
+          <div className="grid grid-cols-6 gap-2 pt-2 items-end h-36 border-b border-zinc-100 dark:border-zinc-800 pb-2">
+            {sixMonthsTrend.months.map(m => {
+              const incH = Math.round((m.income / sixMonthsTrend.maxMonthVal) * 90);
+              const expH = Math.round((m.expense / sixMonthsTrend.maxMonthVal) * 90);
+              const isCurrent = m.monthStr === selectedMonth;
+
+              return (
+                <button
+                  key={m.monthStr}
+                  type="button"
+                  onClick={() => {
+                    sounds.playPop();
+                    sounds.vibrate(10);
+                    setSelectedMonth(m.monthStr);
+                  }}
+                  className={`flex flex-col items-center justify-end h-full rounded-xl p-1 transition-all active:scale-95 ${
+                    isCurrent
+                      ? 'bg-emerald-500/10 ring-1 ring-emerald-500/30'
+                      : 'hover:bg-zinc-50 dark:hover:bg-zinc-800/50'
+                  }`}
+                >
+                  <div className="flex items-end justify-center gap-1 w-full h-24">
+                    <div
+                      className="w-2.5 rounded-t-md bg-emerald-500 transition-all duration-500"
+                      style={{ height: `${m.income > 0 ? Math.max(incH, 6) : 3}px` }}
+                      title={`Masuk: ${formatIDR(m.income)}`}
+                    />
+                    <div
+                      className="w-2.5 rounded-t-md bg-rose-500 transition-all duration-500"
+                      style={{ height: `${m.expense > 0 ? Math.max(expH, 6) : 3}px` }}
+                      title={`Keluar: ${formatIDR(m.expense)}`}
+                    />
+                  </div>
+                  <span
+                    className={`text-[10px] mt-1.5 tabular-nums ${
+                      isCurrent
+                        ? 'font-extrabold text-emerald-500'
+                        : 'font-semibold text-zinc-500 dark:text-zinc-400'
+                    }`}
+                  >
+                    {m.shortLabel}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="flex items-center justify-between text-[11px] text-zinc-400 px-1">
+            <span>Rata-rata Pengeluaran Harian Bulan Ini:</span>
+            <span className="font-extrabold text-zinc-900 dark:text-zinc-100 tabular-nums">
+              {hideBalance ? '••••••' : `${formatIDR(dailyCashflow.dailyAverage, true)} / hari`}
+            </span>
+          </div>
+        </div>
+
+        {/* Wallet Spending Distribution Card */}
+        {walletExpenseBreakdown.length > 0 && (
+          <div className="p-4 rounded-3xl bg-white dark:bg-zinc-900 border border-zinc-200/80 dark:border-zinc-800 shadow-ios-sm space-y-3">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-extrabold text-zinc-900 dark:text-zinc-100">
+                Pengeluaran per Sumber Dompet
+              </h3>
+              <span className="text-[10px] font-bold text-zinc-400">
+                {walletExpenseBreakdown.length} Akun Aktif
+              </span>
+            </div>
+
+            <div className="space-y-2.5">
+              {walletExpenseBreakdown.map(w => (
+                <div key={w.walletId} className="space-y-1">
+                  <div className="flex items-center justify-between text-xs">
+                    <div className="flex items-center gap-2">
+                      <span
+                        className="w-2.5 h-2.5 rounded-full"
+                        style={{ backgroundColor: w.color }}
+                      />
+                      <span className="font-bold text-zinc-800 dark:text-zinc-200">
+                        {w.name}
+                      </span>
+                      <span className="text-[10px] text-zinc-400">({w.count}x)</span>
+                    </div>
+                    <div className="flex items-center gap-2 tabular-nums">
+                      <span className="font-extrabold text-zinc-900 dark:text-zinc-100">
+                        {hideBalance ? '••••••' : formatIDR(w.amount, true)}
+                      </span>
+                      <span className="text-[10px] font-bold text-zinc-400 w-8 text-right">
+                        {w.percentage}%
+                      </span>
+                    </div>
+                  </div>
+                  <div className="w-full h-1.5 rounded-full bg-zinc-100 dark:bg-zinc-800 overflow-hidden">
+                    <div
+                      className="h-full rounded-full transition-all duration-500"
+                      style={{ width: `${w.percentage}%`, backgroundColor: w.color }}
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* CATEGORY DRILLDOWN MODAL (BATCH 34) */}

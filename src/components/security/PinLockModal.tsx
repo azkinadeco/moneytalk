@@ -17,12 +17,15 @@ export const PinLockModal: React.FC<PinLockModalProps> = ({
   const [errorShake, setErrorShake] = useState(false);
   const [faceIdScanning, setFaceIdScanning] = useState(false);
 
+  const [bioError, setBioError] = useState<string | null>(null);
+
   useEffect(() => {
     if (enteredPin.length === 4) {
       if (enteredPin === correctPin) {
         sounds.playSuccess();
         sounds.vibrate(40);
         setEnteredPin('');
+        setBioError(null);
         onUnlock();
       } else {
         sounds.vibrate(80);
@@ -38,6 +41,7 @@ export const PinLockModal: React.FC<PinLockModalProps> = ({
   if (!isLocked) return null;
 
   const handleKeyPress = (num: string) => {
+    setBioError(null);
     if (enteredPin.length < 4) {
       sounds.playPop();
       setEnteredPin(prev => prev + num);
@@ -45,16 +49,36 @@ export const PinLockModal: React.FC<PinLockModalProps> = ({
   };
 
   const handleDelete = () => {
+    setBioError(null);
     setEnteredPin(prev => prev.slice(0, -1));
   };
 
-  const handleSimulateFaceId = () => {
+  // A-01: Remove insecure automatic Face ID bypass; require actual PIN or secure WebAuthn
+  const handleBiometricAuth = async () => {
     setFaceIdScanning(true);
-    setTimeout(() => {
+    setBioError(null);
+
+    try {
+      if (window.PublicKeyCredential && (await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable?.())) {
+        // Platform authenticator is available on iOS (Touch ID / Face ID)
+        // WebAuthn challenge would go here in full backend env; in offline client PWA:
+        // We prompt user to enter their personal PIN for safety
+        setTimeout(() => {
+          setFaceIdScanning(false);
+          setBioError('Gunakan 4 digit PIN untuk keamanan');
+          sounds.vibrate(30);
+        }, 600);
+      } else {
+        setTimeout(() => {
+          setFaceIdScanning(false);
+          setBioError('Biometrik tidak tersedia di perangkat ini');
+          sounds.vibrate(30);
+        }, 400);
+      }
+    } catch {
       setFaceIdScanning(false);
-      sounds.playSuccess();
-      onUnlock();
-    }, 1000);
+      setBioError('Gunakan PIN untuk membuka');
+    }
   };
 
   return (
@@ -66,8 +90,16 @@ export const PinLockModal: React.FC<PinLockModalProps> = ({
         </div>
         <h2 className="text-xl font-extrabold tracking-tight">Money Talk</h2>
         <p className="text-xs text-zinc-400 mt-1">
-          Masukkan 4-digit PIN kamu untuk membuka (Default: 1234)
+          {correctPin === '1234'
+            ? 'Masukkan 4-digit PIN kamu (Default: 1234)'
+            : 'Masukkan 4-digit PIN keamanan kamu'}
         </p>
+
+        {bioError && (
+          <p className="text-xs text-amber-400 font-medium mt-2 animate-in fade-in">
+            {bioError}
+          </p>
+        )}
 
         {/* PIN Dots */}
         <div className={`flex items-center justify-center gap-4 mt-6 ${errorShake ? 'animate-bounce text-rose-500' : ''}`}>
@@ -101,7 +133,7 @@ export const PinLockModal: React.FC<PinLockModalProps> = ({
 
           {/* Bottom row: Face ID / 0 / Backspace */}
           <button
-            onClick={handleSimulateFaceId}
+            onClick={handleBiometricAuth}
             className="w-16 h-16 rounded-full text-zinc-400 hover:text-emerald-400 active:scale-95 transition-all mx-auto flex items-center justify-center"
             title="Buka dengan Face ID"
           >

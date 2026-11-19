@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
 import { useFinance } from '../../context/FinanceContext';
 import { Transaction } from '../../types';
-import { formatIDR, formatDateIndonesian } from '../../utils/format';
+import { formatIDR, formatDateIndonesian, getTodayDateString } from '../../utils/format';
 import { DynamicIcon } from '../common/DynamicIcon';
 import { ReceiptShareModal } from '../modals/ReceiptShareModal';
-import { Trash2, ChevronRight, Calendar, Wallet, Share2, Edit2 } from 'lucide-react';
+import { Trash2, ChevronRight, Calendar, Wallet, Share2, Edit2, Copy } from 'lucide-react';
 import { sounds } from '../../utils/audio';
+import confetti from 'canvas-confetti';
 
 interface RecentTransactionsProps {
   onSeeAll: () => void;
@@ -18,13 +19,19 @@ export const RecentTransactions: React.FC<RecentTransactionsProps> = ({
   onOpenAddModal,
   onEditTransaction,
 }) => {
-  const { transactions, categories, wallets, deleteTransaction, hideBalance, selectedMonth } =
-    useFinance();
+  const {
+    transactions,
+    categories,
+    wallets,
+    addTransaction,
+    deleteTransaction,
+    hideBalance,
+    selectedMonth,
+  } = useFinance();
   const [filterType, setFilterType] = useState<'all' | 'expense' | 'income'>('all');
   const [selectedTx, setSelectedTx] = useState<Transaction | null>(null);
   const [shareTx, setShareTx] = useState<Transaction | null>(null);
 
-  // F-05: Filter by selectedMonth so dashboard stays consistent with Header month selector
   const filtered = transactions.filter(t => {
     if (!t.date.startsWith(selectedMonth)) return false;
     if (filterType === 'all') return true;
@@ -45,6 +52,28 @@ export const RecentTransactions: React.FC<RecentTransactionsProps> = ({
 
   const getWalletName = (walId: string) => {
     return wallets.find(w => w.id === walId)?.name || 'Dompet';
+  };
+
+  const handleDuplicateToday = (tx: Transaction) => {
+    const now = new Date();
+    const time = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+    addTransaction({
+      type: tx.type,
+      amount: tx.amount,
+      originalAmount: tx.originalAmount,
+      currency: tx.currency,
+      categoryId: tx.categoryId,
+      walletId: tx.walletId,
+      targetWalletId: tx.targetWalletId,
+      date: getTodayDateString(),
+      time,
+      note: tx.note,
+      tags: tx.tags,
+      isReimburse: tx.isReimburse,
+      reimburseStatus: tx.isReimburse ? 'pending' : undefined,
+    });
+    confetti({ particleCount: 35, spread: 55, origin: { y: 0.8 } });
+    setSelectedTx(null);
   };
 
   return (
@@ -125,15 +154,27 @@ export const RecentTransactions: React.FC<RecentTransactionsProps> = ({
                   </div>
 
                   <div className="min-w-0">
-                    <p className="text-sm font-bold text-zinc-900 dark:text-zinc-100 truncate">
-                      {tx.note || cat.name}
-                    </p>
+                    <div className="flex items-center gap-1.5">
+                      <p className="text-sm font-bold text-zinc-900 dark:text-zinc-100 truncate">
+                        {tx.note || cat.name}
+                      </p>
+                      {tx.isReimburse && (
+                        <span className="px-1.5 py-0.5 rounded-md bg-blue-500/10 text-blue-500 text-[9px] font-extrabold shrink-0">
+                          Reimburse
+                        </span>
+                      )}
+                    </div>
                     <div className="flex items-center gap-1.5 text-[11px] text-zinc-400 mt-0.5 truncate">
                       <span>{cat.name}</span>
                       <span>•</span>
                       <span>
                         {isTransfer ? `${sourceWallet} → ${targetWallet}` : sourceWallet}
                       </span>
+                      {tx.tags && tx.tags.length > 0 && (
+                        <span className="text-emerald-500 font-semibold">
+                          {tx.tags.join(' ')}
+                        </span>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -162,7 +203,7 @@ export const RecentTransactions: React.FC<RecentTransactionsProps> = ({
         </div>
       )}
 
-      {/* Transaction Detail Bottom Sheet (F-02: Edit + Confirmed Delete) */}
+      {/* Transaction Detail Bottom Sheet */}
       {selectedTx && (
         <div
           className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 backdrop-blur-sm animate-in fade-in duration-200"
@@ -225,19 +266,27 @@ export const RecentTransactions: React.FC<RecentTransactionsProps> = ({
               </div>
             </div>
 
-            {/* Actions (F-02: Edit + E-Receipt + Safe Delete) */}
+            {/* Actions */}
             <div className="pt-2 space-y-2.5">
-              <div className="grid grid-cols-2 gap-2.5">
+              <div className="grid grid-cols-3 gap-2">
                 <button
                   onClick={() => {
                     const txToEdit = selectedTx;
                     setSelectedTx(null);
                     onEditTransaction(txToEdit);
                   }}
-                  className="min-h-[44px] py-3 px-4 rounded-2xl bg-emerald-500 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-sm hover:bg-emerald-600 transition-colors active:scale-95"
+                  className="min-h-[44px] py-2.5 px-3 rounded-2xl bg-emerald-500 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-sm hover:bg-emerald-600 transition-colors active:scale-95"
                 >
-                  <Edit2 className="w-4 h-4" />
-                  Edit Transaksi
+                  <Edit2 className="w-3.5 h-3.5" />
+                  <span>Edit</span>
+                </button>
+
+                <button
+                  onClick={() => handleDuplicateToday(selectedTx)}
+                  className="min-h-[44px] py-2.5 px-3 rounded-2xl bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 font-bold text-xs flex items-center justify-center gap-1.5 hover:bg-indigo-500/20 transition-colors active:scale-95"
+                >
+                  <Copy className="w-3.5 h-3.5" />
+                  <span>Duplikat</span>
                 </button>
 
                 <button
@@ -245,10 +294,10 @@ export const RecentTransactions: React.FC<RecentTransactionsProps> = ({
                     setShareTx(selectedTx);
                     setSelectedTx(null);
                   }}
-                  className="min-h-[44px] py-3 px-4 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 font-bold text-xs flex items-center justify-center gap-2 hover:bg-emerald-100 transition-colors active:scale-95"
+                  className="min-h-[44px] py-2.5 px-3 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 font-bold text-xs flex items-center justify-center gap-1.5 hover:bg-emerald-100 transition-colors active:scale-95"
                 >
-                  <Share2 className="w-4 h-4" />
-                  Struk Digital
+                  <Share2 className="w-3.5 h-3.5" />
+                  <span>Struk</span>
                 </button>
               </div>
 

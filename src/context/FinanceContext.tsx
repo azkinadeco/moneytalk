@@ -11,6 +11,9 @@ import {
   UserProfile,
   AchievementBadge,
   TransactionType,
+  InvestmentAsset,
+  ShoppingItem,
+  ToastNotification,
 } from '../types';
 import {
   INITIAL_CATEGORIES,
@@ -21,7 +24,7 @@ import {
   INITIAL_DEBTS,
   getInitialTransactions,
 } from '../utils/initialData';
-import { getCurrentMonthString, getTodayDateString } from '../utils/format';
+import { getCurrentMonthString, getTodayDateString, formatIDR } from '../utils/format';
 import { sounds } from '../utils/audio';
 
 interface HealthScoreData {
@@ -63,6 +66,11 @@ interface FinanceContextType {
   recurring: RecurringTransaction[];
   debts: DebtItem[];
   badges: AchievementBadge[];
+  investments: InvestmentAsset[];
+  shoppingItems: ShoppingItem[];
+
+  toast: ToastNotification | null;
+  showToast: (message: string, type?: 'success' | 'info' | 'error') => void;
 
   theme: 'dark' | 'light';
   appTheme: AppTheme;
@@ -89,7 +97,7 @@ interface FinanceContextType {
   addTransaction: (tx: Omit<Transaction, 'id' | 'createdAt'>) => void;
   updateTransaction: (id: string, tx: Partial<Transaction>) => void;
   deleteTransaction: (id: string) => void;
-  updateReimburseStatus: (id: string, status: 'pending' | 'claimed' | 'received') => void;
+  updateReimburseStatus: (id: string, status: 'pending' | 'claimed' | 'received', walletId?: string) => void;
 
   // Wallets
   addWallet: (wallet: Omit<Wallet, 'id'>) => void;
@@ -104,7 +112,7 @@ interface FinanceContextType {
   // Goals
   addGoal: (goal: Omit<FinancialGoal, 'id'>) => void;
   updateGoal: (id: string, updated: Partial<FinancialGoal>) => void;
-  updateGoalAmount: (id: string, amountToAdd: number) => void;
+  updateGoalAmount: (id: string, amountToAdd: number, walletId?: string) => void;
   deleteGoal: (id: string) => void;
 
   // Budgets
@@ -119,8 +127,19 @@ interface FinanceContextType {
 
   // Debts
   addDebt: (debt: Omit<DebtItem, 'id' | 'createdAt' | 'isCompleted'>) => void;
-  payDebt: (id: string, paymentAmount: number) => void;
+  payDebt: (id: string, paymentAmount: number, walletId?: string) => void;
   deleteDebt: (id: string) => void;
+
+  // Investments (Batch 71 Persistence)
+  addInvestment: (asset: Omit<InvestmentAsset, 'id'>) => void;
+  updateInvestment: (id: string, asset: Partial<InvestmentAsset>) => void;
+  deleteInvestment: (id: string) => void;
+
+  // Shopping List (Batch 71 Persistence)
+  addShoppingItem: (item: Omit<ShoppingItem, 'id'>) => void;
+  toggleShoppingItem: (id: string) => void;
+  deleteShoppingItem: (id: string) => void;
+  clearBoughtShoppingItems: () => void;
 
   // Computed
   getWalletBalance: (walletId: string) => number;
@@ -152,6 +171,8 @@ const STORAGE_KEYS = {
   GOALS: 'moneytalk_goal_v3',
   RECURRING: 'moneytalk_rec_v3',
   DEBTS: 'moneytalk_debts_v3',
+  INVESTMENTS: 'moneytalk_inv_v3',
+  SHOPPING: 'moneytalk_shop_v3',
   THEME: 'moneytalk_theme_v3',
   APP_THEME: 'moneytalk_app_theme_v3',
   HIDE_BALANCE: 'moneytalk_hide_bal_v3',
@@ -167,12 +188,42 @@ const DEFAULT_PROFILE: UserProfile = {
   monthlyIncomeTarget: 15000000,
 };
 
-const INITIAL_BADGES: AchievementBadge[] = [
-  { id: 'b-first-tx', title: 'Langkah Pertama', description: 'Mencatat transaksi pertamamu di Money Talk', icon: '🌟', isUnlocked: true, unlockedAt: 'Hari ini' },
-  { id: 'b-savings-master', title: 'Sultan Menabung', description: 'Rasio tabungan di atas 30% dalam sebulan', icon: '🏆', isUnlocked: true, unlockedAt: 'Bulan ini' },
-  { id: 'b-budget-guard', title: 'Penjaga Anggaran', description: 'Disiplin tidak overbudget sepanjang bulan', icon: '🛡️', isUnlocked: true, unlockedAt: 'Bulan ini' },
-  { id: 'b-investor', title: 'Investor Cerdas', description: 'Memiliki instrumen investasi aktif', icon: '📈', isUnlocked: true, unlockedAt: 'Aktif' },
-  { id: 'b-debt-free', title: 'Bebas Hutang', description: 'Melunasi seluruh catatan hutang', icon: '🕊️', isUnlocked: false },
+const INITIAL_INVESTMENTS: InvestmentAsset[] = [
+  {
+    id: 'inv-1',
+    name: 'Reksadana Pasar Uang & Obligasi',
+    type: 'mutual_fund',
+    investedValue: 15000000,
+    currentValue: 16120000,
+    institution: 'Bibit (Robo)',
+    color: '#059669',
+  },
+  {
+    id: 'inv-2',
+    name: 'Saham Bluechip BBCA & BBRI',
+    type: 'stocks',
+    investedValue: 12000000,
+    currentValue: 13450000,
+    institution: 'Ajaib Sekuritas',
+    color: '#3B82F6',
+  },
+  {
+    id: 'inv-3',
+    name: 'Emas Logam Mulia Antam (10g)',
+    type: 'gold',
+    investedValue: 13500000,
+    currentValue: 15200000,
+    institution: 'Brankas Antam',
+    color: '#F59E0B',
+  },
+];
+
+const INITIAL_SHOPPING: ShoppingItem[] = [
+  { id: '1', name: 'Beras Premium 5kg', estimatedPrice: 78000, isBought: true },
+  { id: '2', name: 'Minyak Goreng Sania 2L', estimatedPrice: 34500, isBought: true },
+  { id: '3', name: 'Daging Ayam Fillet 1kg', estimatedPrice: 48000, isBought: false },
+  { id: '4', name: 'Telur Ayam 1 Tray (10 butir)', estimatedPrice: 28000, isBought: false },
+  { id: '5', name: 'Kopi Arabika Ground 250g', estimatedPrice: 55000, isBought: false },
 ];
 
 export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -203,8 +254,19 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
     return localStorage.getItem(STORAGE_KEYS.APP_PIN) || '1234';
   });
 
-  const [isAppLocked, setIsAppLocked] = useState<boolean>(false);
+  const [isAppLocked, setIsAppLocked] = useState<boolean>(() => {
+    return localStorage.getItem(STORAGE_KEYS.PIN_LOCK_ENABLED) === 'true';
+  });
   const [selectedMonth, setSelectedMonth] = useState<string>(getCurrentMonthString());
+
+  const [toast, setToast] = useState<ToastNotification | null>(null);
+  const showToast = (message: string, type: 'success' | 'info' | 'error' = 'success') => {
+    setToast({ id: String(Date.now()), message, type });
+    if (type === 'success') sounds.playSuccess();
+    else sounds.playPop();
+    sounds.vibrate(20);
+    setTimeout(() => setToast(null), 3500);
+  };
 
   const [categories, setCategories] = useState<Category[]>(() => {
     const saved = localStorage.getItem(STORAGE_KEYS.CATEGORIES);
@@ -236,12 +298,20 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
     return saved ? JSON.parse(saved) : INITIAL_DEBTS;
   });
 
+  const [investments, setInvestments] = useState<InvestmentAsset[]>(() => {
+    const saved = localStorage.getItem(STORAGE_KEYS.INVESTMENTS);
+    return saved ? JSON.parse(saved) : INITIAL_INVESTMENTS;
+  });
+
+  const [shoppingItems, setShoppingItems] = useState<ShoppingItem[]>(() => {
+    const saved = localStorage.getItem(STORAGE_KEYS.SHOPPING);
+    return saved ? JSON.parse(saved) : INITIAL_SHOPPING;
+  });
+
   const [transactions, setTransactions] = useState<Transaction[]>(() => {
     const saved = localStorage.getItem(STORAGE_KEYS.TRANSACTIONS);
     return saved ? JSON.parse(saved) : getInitialTransactions();
   });
-
-  const [badges, setBadges] = useState<AchievementBadge[]>(INITIAL_BADGES);
 
   // Sync to local storage
   useEffect(() => {
@@ -275,6 +345,14 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
   useEffect(() => {
     localStorage.setItem(STORAGE_KEYS.DEBTS, JSON.stringify(debts));
   }, [debts]);
+
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEYS.INVESTMENTS, JSON.stringify(investments));
+  }, [investments]);
+
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEYS.SHOPPING, JSON.stringify(shoppingItems));
+  }, [shoppingItems]);
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEYS.APP_THEME, appTheme);
@@ -471,6 +549,61 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
     };
   }, [monthlyStats, transactions, selectedMonth, budgets, goals]);
 
+  // Dynamic Reactive Achievements & Badges (A-06)
+  const badges = useMemo<AchievementBadge[]>(() => {
+    const hasTx = transactions.length > 0;
+    const isSavingsMaster = monthlyStats.savingsRate >= 30;
+    const totalBudgetsLimit = budgets
+      .filter(b => b.month === selectedMonth)
+      .reduce((sum, b) => sum + b.limit, 0);
+    const isBudgetGuard = totalBudgetsLimit > 0 && monthlyStats.expense <= totalBudgetsLimit;
+    const isInvestor = investments.length > 0;
+    const isDebtFree = debts.length > 0 && debts.every(d => d.isCompleted);
+
+    return [
+      {
+        id: 'b-first-tx',
+        title: 'Langkah Pertama',
+        description: 'Mencatat transaksi pertamamu di Money Talk',
+        icon: '🌟',
+        isUnlocked: hasTx,
+        unlockedAt: hasTx ? 'Aktif' : undefined,
+      },
+      {
+        id: 'b-savings-master',
+        title: 'Sultan Menabung',
+        description: 'Rasio tabungan di atas 30% dalam sebulan',
+        icon: '🏆',
+        isUnlocked: isSavingsMaster,
+        unlockedAt: isSavingsMaster ? `${monthlyStats.savingsRate}% tabungan` : undefined,
+      },
+      {
+        id: 'b-budget-guard',
+        title: 'Penjaga Anggaran',
+        description: 'Disiplin tidak overbudget sepanjang bulan',
+        icon: '🛡️',
+        isUnlocked: isBudgetGuard,
+        unlockedAt: isBudgetGuard ? 'Bulan ini' : undefined,
+      },
+      {
+        id: 'b-investor',
+        title: 'Investor Cerdas',
+        description: 'Memiliki instrumen investasi aktif',
+        icon: '📈',
+        isUnlocked: isInvestor,
+        unlockedAt: isInvestor ? `${investments.length} portofolio` : undefined,
+      },
+      {
+        id: 'b-debt-free',
+        title: 'Bebas Hutang',
+        description: 'Melunasi seluruh catatan hutang',
+        icon: '🕊️',
+        isUnlocked: isDebtFree,
+        unlockedAt: isDebtFree ? 'Semua lunas' : undefined,
+      },
+    ];
+  }, [transactions, monthlyStats, budgets, selectedMonth, investments, debts]);
+
   // Transaction CRUD
   const addTransaction = (tx: Omit<Transaction, 'id' | 'createdAt'>) => {
     const newTx: Transaction = {
@@ -493,10 +626,42 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
     sounds.vibrate(40);
   };
 
-  const updateReimburseStatus = (id: string, status: 'pending' | 'claimed' | 'received') => {
+  const updateReimburseStatus = (
+    id: string,
+    status: 'pending' | 'claimed' | 'received',
+    walletId?: string
+  ) => {
+    const tx = transactions.find(t => t.id === id);
+    if (!tx) return;
+
+    const prevStatus = tx.reimburseStatus || 'pending';
     setTransactions(prev =>
       prev.map(t => (t.id === id ? { ...t, reimburseStatus: status } : t))
     );
+
+    // If status moved to 'received' and wasn't already 'received', record reimbursement payout into wallet (A-03)
+    if (status === 'received' && prevStatus !== 'received') {
+      const walletToUse = walletId || tx.walletId || wallets[0]?.id;
+      const incCat =
+        categories.find(c => c.name.toLowerCase().includes('kantor') || c.type === 'income')?.id ||
+        categories.find(c => c.type === 'income')?.id ||
+        '';
+      const today = getTodayDateString();
+      const now = new Date();
+      const time = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+
+      addTransaction({
+        type: 'income',
+        amount: tx.amount,
+        categoryId: incCat,
+        walletId: walletToUse,
+        date: today,
+        time,
+        note: `[Pencairan Klaim Kantor] ${tx.note || 'Reimbursement'}`,
+      });
+      showToast(`Dana reimburse ${formatIDR(tx.amount)} berhasil dicairkan ke saldo!`, 'success');
+    }
+
     sounds.playPop();
   };
 
@@ -505,15 +670,33 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
     const newWallet: Wallet = { ...wallet, id: `wal-${Date.now()}` };
     setWallets(prev => [...prev, newWallet]);
     sounds.playSuccess();
+    showToast(`Dompet "${wallet.name}" berhasil ditambahkan`);
   };
 
   const updateWallet = (id: string, updated: Partial<Wallet>) => {
     setWallets(prev => prev.map(w => (w.id === id ? { ...w, ...updated } : w)));
     sounds.playSuccess();
+    showToast('Dompet berhasil diperbarui');
   };
 
   const deleteWallet = (id: string) => {
-    setWallets(prev => prev.filter(w => w.id !== id));
+    const remaining = wallets.filter(w => w.id !== id);
+    if (remaining.length === 0) {
+      showToast('Minimal harus ada 1 dompet aktif', 'error');
+      return;
+    }
+    const fallbackWallet = remaining[0];
+    // Reassign transactions to fallbackWallet so balance and history aren't broken (A-04)
+    setTransactions(prev =>
+      prev.map(t => {
+        let updated = { ...t };
+        if (updated.walletId === id) updated.walletId = fallbackWallet.id;
+        if (updated.targetWalletId === id) updated.targetWalletId = fallbackWallet.id;
+        return updated;
+      })
+    );
+    setWallets(remaining);
+    showToast(`Dompet dihapus. Transaksi dialihkan ke ${fallbackWallet.name}`);
   };
 
   // Category CRUD (Ubah Kategori & Sumber Pendapatan)
@@ -521,15 +704,27 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
     const newCat: Category = { ...cat, id: `cat-${Date.now()}` };
     setCategories(prev => [...prev, newCat]);
     sounds.playSuccess();
+    showToast(`Kategori "${cat.name}" berhasil dibuat`);
   };
 
   const updateCategory = (id: string, updated: Partial<Category>) => {
     setCategories(prev => prev.map(c => (c.id === id ? { ...c, ...updated } : c)));
     sounds.playSuccess();
+    showToast('Kategori berhasil diperbarui');
   };
 
   const deleteCategory = (id: string) => {
-    setCategories(prev => prev.filter(c => c.id !== id));
+    const catToDelete = categories.find(c => c.id === id);
+    if (!catToDelete) return;
+    const remaining = categories.filter(c => c.id !== id);
+    const fallbackCat = remaining.find(c => c.type === catToDelete.type) || remaining[0];
+    if (fallbackCat) {
+      setTransactions(prev =>
+        prev.map(t => (t.categoryId === id ? { ...t, categoryId: fallbackCat.id } : t))
+      );
+    }
+    setCategories(remaining);
+    showToast(`Kategori dihapus. Transaksi dialihkan ke ${fallbackCat?.name || 'Kategori'}`);
   };
 
   // Goals CRUD (Edit & Ubah Target)
@@ -537,23 +732,68 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
     const newGoal: FinancialGoal = { ...goal, id: `goal-${Date.now()}` };
     setGoals(prev => [...prev, newGoal]);
     sounds.playSuccess();
+    showToast(`Target "${goal.title}" dibuat`);
   };
 
   const updateGoal = (id: string, updated: Partial<FinancialGoal>) => {
     setGoals(prev => prev.map(g => (g.id === id ? { ...g, ...updated } : g)));
     sounds.playSuccess();
+    showToast('Target impian diperbarui');
   };
 
-  const updateGoalAmount = (id: string, amountToAdd: number) => {
+  const updateGoalAmount = (id: string, amountToAdd: number, walletId?: string) => {
+    const goal = goals.find(g => g.id === id);
+    if (!goal) return;
+
     setGoals(prev =>
-      prev.map(g => (g.id === id ? { ...g, currentAmount: Math.max(0, g.currentAmount + amountToAdd) } : g))
+      prev.map(g =>
+        g.id === id ? { ...g, currentAmount: Math.max(0, g.currentAmount + amountToAdd) } : g
+      )
     );
+
+    // Ledger Movement: sync to wallet balance (A-03)
+    const targetWalletId = walletId || wallets[0]?.id;
+    if (targetWalletId && amountToAdd !== 0) {
+      const today = getTodayDateString();
+      const now = new Date();
+      const time = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+
+      if (amountToAdd > 0) {
+        // Setor tabungan: Money deducted from wallet
+        const expCat = categories.find(c => c.type === 'expense')?.id || '';
+        addTransaction({
+          type: 'expense',
+          amount: amountToAdd,
+          categoryId: expCat,
+          walletId: targetWalletId,
+          date: today,
+          time,
+          note: `[Tabungan Impian] ${goal.title}`,
+        });
+        showToast(`Disetor ${formatIDR(amountToAdd)} ke tabungan "${goal.title}"`);
+      } else {
+        // Tarik tabungan: Money returned to wallet
+        const incCat = categories.find(c => c.type === 'income')?.id || '';
+        addTransaction({
+          type: 'income',
+          amount: Math.abs(amountToAdd),
+          categoryId: incCat,
+          walletId: targetWalletId,
+          date: today,
+          time,
+          note: `[Tarik Tabungan] ${goal.title}`,
+        });
+        showToast(`Ditarik ${formatIDR(Math.abs(amountToAdd))} dari tabungan "${goal.title}"`);
+      }
+    }
+
     sounds.playSuccess();
     sounds.vibrate(30);
   };
 
   const deleteGoal = (id: string) => {
     setGoals(prev => prev.filter(g => g.id !== id));
+    showToast('Target tabungan dihapus');
   };
 
   // Budgets
@@ -573,6 +813,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
     const newRec: RecurringTransaction = { ...rec, id: `rec-${Date.now()}` };
     setRecurring(prev => [...prev, newRec]);
     sounds.playSuccess();
+    showToast(`Tagihan "${rec.name}" berhasil dibuat`);
   };
 
   const updateRecurring = (id: string, updated: Partial<RecurringTransaction>) => {
@@ -587,6 +828,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   const deleteRecurring = (id: string) => {
     setRecurring(prev => prev.filter(r => r.id !== id));
+    showToast('Tagihan rutin dihapus');
   };
 
   const executeRecurring = (id: string) => {
@@ -608,6 +850,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
     });
 
     setRecurring(prev => prev.map(r => (r.id === id ? { ...r, lastExecuted: today } : r)));
+    showToast(`Tagihan "${rec.name}" berhasil dicatat`);
   };
 
   // Debts CRUD
@@ -620,25 +863,100 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
     };
     setDebts(prev => [newDebt, ...prev]);
     sounds.playSuccess();
+    showToast(`Catatan ${debt.type === 'receivable' ? 'piutang' : 'hutang'} berhasil disimpan`);
   };
 
-  const payDebt = (id: string, paymentAmount: number) => {
+  const payDebt = (id: string, paymentAmount: number, walletId?: string) => {
+    const debt = debts.find(d => d.id === id);
+    if (!debt || paymentAmount <= 0) return;
+
+    const newPaid = Math.min(debt.amount, debt.paidAmount + paymentAmount);
     setDebts(prev =>
-      prev.map(d => {
-        if (d.id !== id) return d;
-        const newPaid = Math.min(d.amount, d.paidAmount + paymentAmount);
-        return {
-          ...d,
-          paidAmount: newPaid,
-          isCompleted: newPaid >= d.amount,
-        };
-      })
+      prev.map(d => (d.id === id ? { ...d, paidAmount: newPaid, isCompleted: newPaid >= d.amount } : d))
     );
+
+    // Auto ledger transaction if wallet provided (A-03)
+    const targetWalletId = walletId || wallets[0]?.id;
+    if (targetWalletId) {
+      const today = getTodayDateString();
+      const now = new Date();
+      const time = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+
+      if (debt.type === 'payable') {
+        const expCat = categories.find(c => c.type === 'expense')?.id || '';
+        addTransaction({
+          type: 'expense',
+          amount: paymentAmount,
+          categoryId: expCat,
+          walletId: targetWalletId,
+          date: today,
+          time,
+          note: `[Cicilan Hutang] ke ${debt.personName}`,
+        });
+        showToast(`Cicilan ${formatIDR(paymentAmount)} ke ${debt.personName} dibukukan!`);
+      } else {
+        const incCat = categories.find(c => c.type === 'income')?.id || '';
+        addTransaction({
+          type: 'income',
+          amount: paymentAmount,
+          categoryId: incCat,
+          walletId: targetWalletId,
+          date: today,
+          time,
+          note: `[Terima Piutang] dari ${debt.personName}`,
+        });
+        showToast(`Pelunasan ${formatIDR(paymentAmount)} dari ${debt.personName} masuk ke kas!`);
+      }
+    }
+
     sounds.playSuccess();
   };
 
   const deleteDebt = (id: string) => {
     setDebts(prev => prev.filter(d => d.id !== id));
+    showToast('Catatan hutang/piutang dihapus');
+  };
+
+  // Investments CRUD (A-02)
+  const addInvestment = (asset: Omit<InvestmentAsset, 'id'>) => {
+    const newAsset: InvestmentAsset = { ...asset, id: `inv-${Date.now()}` };
+    setInvestments(prev => [...prev, newAsset]);
+    sounds.playSuccess();
+    showToast(`Aset "${asset.name}" berhasil ditambahkan`);
+  };
+
+  const updateInvestment = (id: string, asset: Partial<InvestmentAsset>) => {
+    setInvestments(prev => prev.map(a => (a.id === id ? { ...a, ...asset } : a)));
+    sounds.playSuccess();
+    showToast('Aset investasi diperbarui');
+  };
+
+  const deleteInvestment = (id: string) => {
+    setInvestments(prev => prev.filter(a => a.id !== id));
+    showToast('Aset investasi dihapus');
+  };
+
+  // Shopping List CRUD (A-02)
+  const addShoppingItem = (item: Omit<ShoppingItem, 'id'>) => {
+    const newItem: ShoppingItem = { ...item, id: String(Date.now()) };
+    setShoppingItems(prev => [...prev, newItem]);
+    sounds.playPop();
+  };
+
+  const toggleShoppingItem = (id: string) => {
+    setShoppingItems(prev =>
+      prev.map(it => (it.id === id ? { ...it, isBought: !it.isBought } : it))
+    );
+    sounds.playPop();
+  };
+
+  const deleteShoppingItem = (id: string) => {
+    setShoppingItems(prev => prev.filter(it => it.id !== id));
+  };
+
+  const clearBoughtShoppingItems = () => {
+    setShoppingItems(prev => prev.filter(it => !it.isBought));
+    showToast('Barang terbeli dibersihkan');
   };
 
   // Reset
@@ -650,6 +968,8 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
     setGoals(INITIAL_GOALS);
     setRecurring(INITIAL_RECURRING);
     setDebts(INITIAL_DEBTS);
+    setInvestments(INITIAL_INVESTMENTS);
+    setShoppingItems(INITIAL_SHOPPING);
     setUserProfile(DEFAULT_PROFILE);
     sounds.playPop();
   };
@@ -666,6 +986,8 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
       goals,
       recurring,
       debts,
+      investments,
+      shoppingItems,
     };
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
@@ -704,6 +1026,12 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
       }
       if (data.debts && Array.isArray(data.debts)) {
         setDebts(data.debts);
+      }
+      if (data.investments && Array.isArray(data.investments)) {
+        setInvestments(data.investments);
+      }
+      if (data.shoppingItems && Array.isArray(data.shoppingItems)) {
+        setShoppingItems(data.shoppingItems);
       }
       if (data.userProfile && typeof data.userProfile === 'object') {
         setUserProfile(data.userProfile);
@@ -759,6 +1087,17 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
         recurring,
         debts,
         badges,
+        investments,
+        addInvestment,
+        updateInvestment,
+        deleteInvestment,
+        shoppingItems,
+        addShoppingItem,
+        toggleShoppingItem,
+        deleteShoppingItem,
+        clearBoughtShoppingItems,
+        toast,
+        showToast,
         theme: appTheme === 'light' ? 'light' : 'dark',
         appTheme,
         setAppTheme,

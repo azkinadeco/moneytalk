@@ -6,7 +6,7 @@ import confetti from 'canvas-confetti';
 import { Users, Plus, Trash2, Share2, Check, ArrowRight, Copy } from 'lucide-react';
 
 export const SplitBillView: React.FC = () => {
-  const { addTransaction, addDebt, wallets } = useFinance();
+  const { addTransaction, addDebt, wallets, categories, showToast } = useFinance();
 
   const [billTitle, setBillTitle] = useState('Makan Bareng Teman');
   const [billAmount, setBillAmount] = useState('300000');
@@ -89,12 +89,25 @@ export const SplitBillView: React.FC = () => {
     const myShare = members[0]?.amount || 0;
     const otherMembers = members.slice(1);
 
+    const foodCat =
+      categories.find(
+        c =>
+          c.type === 'expense' &&
+          (c.name.toLowerCase().includes('makan') ||
+            c.name.toLowerCase().includes('food') ||
+            c.id === 'cat-food')
+      ) ||
+      categories.find(c => c.type === 'expense') ||
+      categories[0];
+
+    const walletId = wallets[0]?.id || 'wal-bca';
+
     // Add your expense
     addTransaction({
       type: 'expense',
       amount: myShare,
-      categoryId: 'cat-food',
-      walletId: wallets[0]?.id || 'wal-bca',
+      categoryId: foodCat?.id || 'cat-food',
+      walletId,
       date: new Date().toISOString().split('T')[0],
       note: `Patungan: ${billTitle} (Porsi Saya)`,
     });
@@ -118,8 +131,9 @@ export const SplitBillView: React.FC = () => {
       origin: { y: 0.8 },
     });
 
-    alert(
-      `Sukses! Porsi kamu (${formatIDR(myShare)}) telah dicatat sebagai Pengeluaran, dan porsi teman yang belum bayar telah otomatis dicatat di Catatan Piutang.`
+    showToast(
+      `Sukses! Porsi kamu (${formatIDR(myShare)}) dicatat di Pengeluaran & piutang teman tercatat!`,
+      'success'
     );
   };
 

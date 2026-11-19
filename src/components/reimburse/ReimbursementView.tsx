@@ -12,6 +12,7 @@ export const ReimbursementView: React.FC = () => {
   // New Reimbursement form
   const [title, setTitle] = useState('');
   const [amount, setAmount] = useState('');
+  const [selectedWalletId, setSelectedWalletId] = useState('');
 
   const reimburseTxList = transactions.filter(t => t.isReimburse);
 
@@ -28,11 +29,22 @@ export const ReimbursementView: React.FC = () => {
     e.preventDefault();
     if (!title.trim()) return;
 
+    const transportCat =
+      categories.find(
+        c =>
+          c.type === 'expense' &&
+          (c.name.toLowerCase().includes('transport') || c.id === 'cat-transport')
+      ) ||
+      categories.find(c => c.type === 'expense') ||
+      categories[0];
+
+    const walletId = selectedWalletId || wallets[0]?.id || 'wal-bca';
+
     addTransaction({
       type: 'expense',
       amount: parseInt(amount.replace(/\D/g, ''), 10) || 0,
-      categoryId: 'cat-transport',
-      walletId: wallets[0]?.id || 'wal-bca',
+      categoryId: transportCat?.id || 'cat-transport',
+      walletId,
       date: new Date().toISOString().split('T')[0],
       note: `[Klaim Kantor] ${title.trim()}`,
       isReimburse: true,
@@ -41,11 +53,16 @@ export const ReimbursementView: React.FC = () => {
 
     setTitle('');
     setAmount('');
+    setSelectedWalletId('');
     setShowAddModal(false);
   };
 
-  const handleUpdateStatus = (id: string, newStatus: 'pending' | 'claimed' | 'received') => {
-    updateReimburseStatus(id, newStatus);
+  const handleUpdateStatus = (
+    id: string,
+    newStatus: 'pending' | 'claimed' | 'received',
+    targetWalletId?: string
+  ) => {
+    updateReimburseStatus(id, newStatus, targetWalletId || wallets[0]?.id);
     if (newStatus === 'received') {
       confetti({ particleCount: 40, spread: 60, origin: { y: 0.8 } });
     }
@@ -158,7 +175,7 @@ export const ReimbursementView: React.FC = () => {
                       Diajukan
                     </button>
                     <button
-                      onClick={() => handleUpdateStatus(item.id, 'received')}
+                      onClick={() => handleUpdateStatus(item.id, 'received', item.walletId)}
                       className={`px-2 py-0.5 rounded-lg font-semibold ${
                         status === 'received'
                           ? 'bg-emerald-500 text-white'
@@ -213,6 +230,23 @@ export const ReimbursementView: React.FC = () => {
                   onChange={e => setAmount(e.target.value.replace(/\D/g, ''))}
                   className="w-full min-h-[44px] px-3.5 py-2.5 rounded-xl bg-zinc-100 dark:bg-zinc-800 text-[16px] sm:text-sm font-bold text-zinc-900 dark:text-zinc-100 focus:outline-none"
                 />
+              </div>
+
+              <div>
+                <label className="text-[11px] font-semibold text-zinc-400 block mb-1">
+                  Sumber Dompet Terpakai
+                </label>
+                <select
+                  value={selectedWalletId || wallets[0]?.id}
+                  onChange={e => setSelectedWalletId(e.target.value)}
+                  className="w-full min-h-[44px] px-3.5 py-2.5 rounded-xl bg-zinc-100 dark:bg-zinc-800 text-[16px] sm:text-xs text-zinc-900 dark:text-zinc-100 focus:outline-none"
+                >
+                  {wallets.map(w => (
+                    <option key={w.id} value={w.id}>
+                      {w.icon} {w.name}
+                    </option>
+                  ))}
+                </select>
               </div>
 
               <div className="pt-2 flex gap-2">

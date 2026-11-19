@@ -1,9 +1,11 @@
-import React, { useState, Suspense, lazy } from 'react';
+import React, { useState, useEffect, Suspense, lazy } from 'react';
 import { FinanceProvider, useFinance } from './context/FinanceContext';
 import { TabType, Transaction, TransactionType } from './types';
 import { Header } from './components/layout/Header';
 import { BottomNavigation } from './components/layout/BottomNavigation';
 import { BalanceCard } from './components/dashboard/BalanceCard';
+import { QuickShortcutsRow } from './components/dashboard/QuickShortcutsRow';
+import { SmartReminderBanner } from './components/dashboard/SmartReminderBanner';
 import { QuickBudgetBar } from './components/dashboard/QuickBudgetBar';
 import { RecentTransactions } from './components/dashboard/RecentTransactions';
 import { TransactionListView } from './components/transactions/TransactionListView';
@@ -55,7 +57,7 @@ const ReimbursementView = lazy(() =>
 );
 
 const MainAppContent: React.FC = () => {
-  const { isAppLocked, unlockApp, appPin } = useFinance();
+  const { isAppLocked, unlockApp, appPin, toast } = useFinance();
 
   const [currentTab, setCurrentTab] = useState<TabType | 'recurring'>('dashboard');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -66,6 +68,23 @@ const MainAppContent: React.FC = () => {
   const [isPersonaOpen, setIsPersonaOpen] = useState(false);
   const [isCurrencyConverterOpen, setIsCurrencyConverterOpen] = useState(false);
   const [isBadgesOpen, setIsBadgesOpen] = useState(false);
+
+  // A-07: Global Escape key listener for accessible modal dismissal
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setIsAddModalOpen(false);
+        setEditingTransaction(null);
+        setIsReportOpen(false);
+        setIsNotificationOpen(false);
+        setIsPersonaOpen(false);
+        setIsCurrencyConverterOpen(false);
+        setIsBadgesOpen(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   const handleOpenAddModal = (type: TransactionType = 'expense') => {
     setEditingTransaction(null);
@@ -101,6 +120,24 @@ const MainAppContent: React.FC = () => {
     <div className="min-h-[100dvh] w-full overflow-x-hidden bg-zinc-100 dark:bg-[#09090b] text-zinc-900 dark:text-zinc-100 flex flex-col justify-between selection:bg-emerald-500 selection:text-white">
       {/* Mobile Shell Container */}
       <div className="w-full max-w-md mx-auto min-h-[100dvh] overflow-x-hidden flex flex-col bg-zinc-50 dark:bg-zinc-950 shadow-2xl relative">
+        {/* Floating iOS Native Toast Pill (A-06) */}
+        {toast && (
+          <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[100] max-w-[90%] pointer-events-none animate-in fade-in slide-in-from-top-3 duration-200">
+            <div
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-full shadow-xl backdrop-blur-xl border text-xs font-semibold ${
+                toast.type === 'error'
+                  ? 'bg-rose-500/90 text-white border-rose-400/30'
+                  : toast.type === 'info'
+                  ? 'bg-blue-500/90 text-white border-blue-400/30'
+                  : 'bg-zinc-900/90 dark:bg-zinc-800/90 text-emerald-400 border-zinc-700/50'
+              }`}
+            >
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+              <span>{toast.message}</span>
+            </div>
+          </div>
+        )}
+
         {/* Clean Sticky iOS Header */}
         <Header
           onOpenNotifications={() => setIsNotificationOpen(true)}
@@ -123,12 +160,14 @@ const MainAppContent: React.FC = () => {
         {/* Content Area */}
         <main className="flex-1 px-4 py-3 overflow-y-auto">
           {currentTab === 'dashboard' && (
-            <div className="space-y-4 pb-24">
+            <div className="space-y-3.5 pb-24">
               <IosInstallBanner />
               <BalanceCard
                 onOpenAddModal={() => handleOpenAddModal('expense')}
                 onOpenTransferModal={() => handleOpenAddModal('transfer')}
               />
+              <QuickShortcutsRow onNavigate={tab => setCurrentTab(tab)} />
+              <SmartReminderBanner onNavigate={tab => setCurrentTab(tab)} />
               <QuickBudgetBar onGoToBudgets={() => setCurrentTab('goals')} />
               <RecentTransactions
                 onSeeAll={() => setCurrentTab('transactions')}

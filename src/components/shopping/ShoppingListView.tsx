@@ -6,62 +6,59 @@ import confetti from 'canvas-confetti';
 import { ShoppingBag, Plus, Trash2, Check, ArrowRight, Sparkles } from 'lucide-react';
 
 export const ShoppingListView: React.FC = () => {
-  const { addTransaction, wallets } = useFinance();
-
-  const [items, setItems] = useState<ShoppingItem[]>([
-    { id: '1', name: 'Beras Premium 5kg', estimatedPrice: 78000, isBought: true },
-    { id: '2', name: 'Minyak Goreng Sania 2L', estimatedPrice: 34500, isBought: true },
-    { id: '3', name: 'Daging Ayam Fillet 1kg', estimatedPrice: 48000, isBought: false },
-    { id: '4', name: 'Telur Ayam 1 Tray (10 butir)', estimatedPrice: 28000, isBought: false },
-    { id: '5', name: 'Kopi Arabika Ground 250g', estimatedPrice: 55000, isBought: false },
-  ]);
+  const {
+    addTransaction,
+    wallets,
+    categories,
+    shoppingItems,
+    addShoppingItem,
+    toggleShoppingItem,
+    deleteShoppingItem,
+    clearBoughtShoppingItems,
+    showToast,
+  } = useFinance();
 
   const [newItemName, setNewItemName] = useState('');
   const [newItemPrice, setNewItemPrice] = useState('');
 
-  const totalEstimate = items.reduce((sum, it) => sum + it.estimatedPrice, 0);
-  const boughtTotal = items.filter(it => it.isBought).reduce((sum, it) => sum + it.estimatedPrice, 0);
-
-  const handleToggleBought = (id: string) => {
-    setItems(prev =>
-      prev.map(it => (it.id === id ? { ...it, isBought: !it.isBought } : it))
-    );
-  };
+  const totalEstimate = shoppingItems.reduce((sum, it) => sum + it.estimatedPrice, 0);
+  const boughtTotal = shoppingItems.filter(it => it.isBought).reduce((sum, it) => sum + it.estimatedPrice, 0);
 
   const handleAddItem = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newItemName.trim()) return;
 
-    const newItem: ShoppingItem = {
-      id: String(Date.now()),
+    addShoppingItem({
       name: newItemName.trim(),
       estimatedPrice: parseInt(newItemPrice.replace(/\D/g, ''), 10) || 0,
       isBought: false,
-    };
+    });
 
-    setItems(prev => [...prev, newItem]);
     setNewItemName('');
     setNewItemPrice('');
-  };
-
-  const handleDeleteItem = (id: string) => {
-    setItems(prev => prev.filter(it => it.id !== id));
   };
 
   // 1-Click: Book total bought items into Expenses
   const handleBookExpense = () => {
     if (boughtTotal <= 0) {
-      alert('Pilih barang yang sudah dibeli terlebih dahulu');
+      showToast('Pilih barang yang sudah dibeli terlebih dahulu', 'info');
       return;
     }
+
+    const shoppingCat =
+      categories.find(c => c.type === 'expense' && (c.name.toLowerCase().includes('belanja') || c.id === 'cat-shopping')) ||
+      categories.find(c => c.type === 'expense') ||
+      categories[0];
+
+    const walletId = wallets[0]?.id || 'wal-bca';
 
     addTransaction({
       type: 'expense',
       amount: boughtTotal,
-      categoryId: 'cat-shopping',
-      walletId: wallets[0]?.id || 'wal-bca',
+      categoryId: shoppingCat?.id || 'cat-shopping',
+      walletId,
       date: new Date().toISOString().split('T')[0],
-      note: `Belanja Supermarket (${items.filter(i => i.isBought).length} barang)`,
+      note: `Belanja Supermarket (${shoppingItems.filter(i => i.isBought).length} barang)`,
     });
 
     confetti({
@@ -70,7 +67,7 @@ export const ShoppingListView: React.FC = () => {
       origin: { y: 0.8 },
     });
 
-    alert(`Sukses membukukan ${formatIDR(boughtTotal)} ke kategori Belanja & Groceries!`);
+    showToast(`Sukses membukukan ${formatIDR(boughtTotal)} ke ${shoppingCat?.name || 'Belanja'}!`, 'success');
   };
 
   return (
@@ -127,7 +124,7 @@ export const ShoppingListView: React.FC = () => {
 
       {/* Items List */}
       <div className="bg-white dark:bg-zinc-900 rounded-3xl border border-zinc-200/80 dark:border-zinc-800 shadow-ios-sm divide-y divide-zinc-100 dark:divide-zinc-800 overflow-hidden">
-        {items.map(it => (
+        {shoppingItems.map(it => (
           <div
             key={it.id}
             className={`px-4 py-3 flex items-center justify-between transition-colors ${
@@ -135,7 +132,7 @@ export const ShoppingListView: React.FC = () => {
             }`}
           >
             <div
-              onClick={() => handleToggleBought(it.id)}
+              onClick={() => toggleShoppingItem(it.id)}
               className="flex items-center gap-3 cursor-pointer min-w-0 flex-1"
             >
               <div
@@ -163,8 +160,9 @@ export const ShoppingListView: React.FC = () => {
                 {formatIDR(it.estimatedPrice)}
               </span>
               <button
-                onClick={() => handleDeleteItem(it.id)}
+                onClick={() => deleteShoppingItem(it.id)}
                 className="text-zinc-300 hover:text-rose-500 transition-colors"
+                title="Hapus barang"
               >
                 <Trash2 className="w-3.5 h-3.5" />
               </button>
@@ -173,14 +171,25 @@ export const ShoppingListView: React.FC = () => {
         ))}
       </div>
 
-      {/* Complete and Book Expense */}
-      <button
-        onClick={handleBookExpense}
-        className="w-full min-h-[48px] rounded-2xl bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-md shadow-emerald-500/25 active:scale-95 transition-all"
-      >
-        <Sparkles className="w-4 h-4" />
-        Bukukan Belanja ({formatIDR(boughtTotal)})
-      </button>
+      {/* Action Buttons */}
+      <div className="space-y-2">
+        <button
+          onClick={handleBookExpense}
+          className="w-full min-h-[48px] rounded-2xl bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-md shadow-emerald-500/25 active:scale-95 transition-all"
+        >
+          <Sparkles className="w-4 h-4" />
+          Bukukan Belanja ({formatIDR(boughtTotal)})
+        </button>
+
+        {shoppingItems.some(i => i.isBought) && (
+          <button
+            onClick={clearBoughtShoppingItems}
+            className="w-full min-h-[40px] rounded-xl bg-zinc-100 dark:bg-zinc-800/60 hover:bg-zinc-200 dark:hover:bg-zinc-800 text-zinc-500 dark:text-zinc-400 font-semibold text-xs active:scale-95 transition-all"
+          >
+            Hapus Barang Yang Sudah Terbeli
+          </button>
+        )}
+      </div>
     </div>
   );
 };

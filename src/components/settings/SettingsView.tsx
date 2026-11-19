@@ -86,9 +86,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
   // Edit Category State
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
+  const [isAddingCategory, setIsAddingCategory] = useState(false);
   const [catName, setCatName] = useState('');
-  const [catColor, setCatColor] = useState('');
-  const [catIcon, setCatIcon] = useState('');
+  const [catColor, setCatColor] = useState('#10B981');
+  const [catIcon, setCatIcon] = useState('Coins');
 
   // Edit Wallet State
   const [editingWallet, setEditingWallet] = useState<Wallet | null>(null);
@@ -154,23 +155,28 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     setEditingCategory(null);
   };
 
-  // Handle Add New Category
+  // Handle Add New Category Open Modal (Batch 65)
   const handleAddNewCategory = () => {
-    const promptText =
-      categoryTypeFilter === 'income'
-        ? 'Masukkan nama sumber pemasukan baru (misal: Toko Online, Dividen Saham, Bonus):'
-        : 'Masukkan nama kategori pengeluaran baru (misal: Hewan Peliharaan, Streaming, Kursus):';
+    sounds.playPop();
+    sounds.vibrate(10);
+    setCatName('');
+    setCatColor(categoryTypeFilter === 'income' ? '#10B981' : '#F97316');
+    setCatIcon(categoryTypeFilter === 'income' ? 'Coins' : 'ShoppingBag');
+    setIsAddingCategory(true);
+  };
 
-    const name = prompt(promptText);
-    if (name && name.trim()) {
-      addCategory({
-        name: name.trim(),
-        color: categoryTypeFilter === 'income' ? '#10B981' : '#F97316',
-        icon: categoryTypeFilter === 'income' ? 'Coins' : 'ShoppingBag',
-        type: categoryTypeFilter,
-      });
-      confetti({ particleCount: 30, spread: 50 });
-    }
+  const handleCreateCategorySubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!catName.trim()) return;
+    addCategory({
+      name: catName.trim(),
+      color: catColor || '#10B981',
+      icon: catIcon || 'Coins',
+      type: categoryTypeFilter,
+    });
+    confetti({ particleCount: 35, spread: 55 });
+    setIsAddingCategory(false);
+    setCatName('');
   };
 
   // Handle Edit Wallet Save
@@ -901,6 +907,109 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 </div>
               </form>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* ADD NEW CATEGORY MODAL (BATCH 65) */}
+      {isAddingCategory && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="fixed inset-0" onClick={() => setIsAddingCategory(false)} />
+          <div className="relative w-full max-w-lg bg-white dark:bg-zinc-900 rounded-t-[32px] p-5 shadow-ios-elevated z-10 border-t border-zinc-200 dark:border-zinc-800">
+            <div className="w-12 h-1.5 bg-zinc-300 dark:bg-zinc-700 rounded-full mx-auto mb-4" />
+            <div className="flex items-center gap-3 mb-3">
+              <div
+                className="w-11 h-11 rounded-2xl flex items-center justify-center text-white shadow-sm shrink-0"
+                style={{ backgroundColor: catColor }}
+              >
+                <DynamicIcon name={catIcon} className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-zinc-900 dark:text-zinc-100">
+                  Tambah {categoryTypeFilter === 'income' ? 'Sumber Pendapatan' : 'Kategori Pengeluaran'}
+                </h3>
+                <p className="text-[11px] text-zinc-400">
+                  Kustomisasi nama, warna, dan ikon kategori barumu
+                </p>
+              </div>
+            </div>
+
+            <form onSubmit={handleCreateCategorySubmit} className="space-y-3.5">
+              <div>
+                <label className="text-[11px] font-semibold text-zinc-400 block mb-1">
+                  Nama Kategori / Sumber
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder={
+                    categoryTypeFilter === 'income'
+                      ? 'e.g. Toko Online, Dividen, Bonus'
+                      : 'e.g. Langganan Streaming, Olahraga, Kucing'
+                  }
+                  value={catName}
+                  onChange={e => setCatName(e.target.value)}
+                  className="w-full min-h-[44px] px-3.5 py-2.5 rounded-xl bg-zinc-100 dark:bg-zinc-800 text-[16px] sm:text-sm font-bold text-zinc-900 dark:text-zinc-100 focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="text-[11px] font-semibold text-zinc-400 block mb-1">
+                  Pilih Warna Ikon
+                </label>
+                <div className="flex gap-2 flex-wrap">
+                  {colorPalette.map(c => (
+                    <button
+                      key={c}
+                      type="button"
+                      onClick={() => setCatColor(c)}
+                      className={`w-8 h-8 rounded-full transition-transform active:scale-90 ${
+                        catColor === c ? 'ring-2 ring-emerald-500 scale-110' : ''
+                      }`}
+                      style={{ backgroundColor: c }}
+                    />
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="text-[11px] font-semibold text-zinc-400 block mb-1">
+                  Pilih Ikon
+                </label>
+                <div className="flex gap-2 flex-wrap max-h-28 overflow-y-auto p-1">
+                  {iconPalette.map(ic => (
+                    <button
+                      key={ic}
+                      type="button"
+                      onClick={() => setCatIcon(ic)}
+                      className={`p-2 rounded-xl border flex items-center justify-center transition-all ${
+                        catIcon === ic
+                          ? 'border-emerald-500 bg-emerald-500/10 text-emerald-500'
+                          : 'border-zinc-200 dark:border-zinc-800 text-zinc-500'
+                      }`}
+                    >
+                      <DynamicIcon name={ic} className="w-5 h-5" />
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="pt-2 flex gap-2">
+                <button
+                  type="submit"
+                  className="flex-1 min-h-[48px] py-3 rounded-2xl bg-emerald-500 text-white font-bold text-xs active:scale-95 transition-all shadow-md"
+                >
+                  Tambah Kategori
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsAddingCategory(false)}
+                  className="min-h-[48px] py-3 px-4 rounded-2xl bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 font-semibold text-xs active:scale-95"
+                >
+                  Batal
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

@@ -57,8 +57,23 @@ export const AiAdvisorView: React.FC = () => {
     }
 
     if (q.includes('makan') || q.includes('kuliner') || q.includes('kopi')) {
+      const foodCatIds = categories
+        .filter(
+          c =>
+            c.name.toLowerCase().includes('makan') ||
+            c.name.toLowerCase().includes('food') ||
+            c.name.toLowerCase().includes('kuliner') ||
+            c.id === 'cat-food'
+        )
+        .map(c => c.id);
+
       const foodExp = transactions
-        .filter(t => t.type === 'expense' && t.categoryId === 'cat-food' && t.date.startsWith(selectedMonth))
+        .filter(
+          t =>
+            t.type === 'expense' &&
+            (foodCatIds.length > 0 ? foodCatIds.includes(t.categoryId) : t.categoryId === 'cat-food') &&
+            t.date.startsWith(selectedMonth)
+        )
         .reduce((sum, t) => sum + t.amount, 0);
       return `Total pengeluaran kategori Makanan & Minuman bulan ini adalah ${formatIDR(foodExp)}. Rata-rata per hari sekitar ${formatIDR(Math.round(foodExp / 30))}. Tips: Bawa bekal makan siang 2 kali seminggu bisa menghemat hingga Rp 350.000 sebulan!`;
     }
@@ -114,7 +129,7 @@ export const AiAdvisorView: React.FC = () => {
   ];
 
   return (
-    <div className="flex flex-col h-[calc(100vh-140px)] pb-24">
+    <div className="flex flex-col h-[calc(100dvh-150px)] pb-24">
       {/* Advisor Header */}
       <div className="p-4 rounded-3xl bg-gradient-to-r from-emerald-500/10 via-teal-500/10 to-indigo-500/10 border border-emerald-500/20 mb-3 flex items-center gap-3 shrink-0">
         <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-emerald-500 to-teal-400 text-white flex items-center justify-center shadow-md shadow-emerald-500/20 shrink-0">

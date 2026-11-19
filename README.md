@@ -1,4 +1,4 @@
-# 💰 Money Talk — Aplikasi Catatan Keuangan Pintar & Lengkap (60 Batches)
+# 💰 Money Talk — Aplikasi Catatan Keuangan Pintar & Lengkap (70 Batches)
 
 Aplikasi catatan keuangan pribadi *mobile-first* dengan tampilan modern standar **Apple iOS 18 Cupertino Aesthetic**, dirancang agar sangat intuitif, proporsional, bebas *auto-zoom* di Safari iPhone, dan kaya interaksi (haptik & efek audio sintetis Web Audio API).
 
@@ -26,21 +26,26 @@ http://localhost:5173
 
 ---
 
-## ✨ Fitur Unggulan & 60 Batch Pengembangan
+## ✨ Fitur Unggulan & 70 Batch Pengembangan
 
 ### 1. Desain & Proporsi Layar (iOS 18 Cupertino Aesthetic)
 - **Anti-Zoom Safari**: Bebas distorsi dan auto-zoom saat mengetik atau memilih kategori di iPhone (standar input 16px & `touch-action: manipulation`).
 - **Apple Card Titanium Saldo**: Kartu saldo utama dengan tipografi angka tabular (`tabular-nums`) dan grafik ritme belanja 7 hari interaktif (*tap-to-expand*).
+- **Quick Shortcut Dock & Skor Kesehatan 50/30/20 (Batch 61)**: Pintasan cepat ke Split Bill, Tagihan, Kalender, dan AI Advisor di Beranda, lengkap dengan indikator Skor Kesehatan Finansial & perbandingan pengeluaran vs bulan lalu (*MoM*).
+- **Smart Bill Reminder Banner (Batch 68)**: Pengingat tagihan jatuh tempo otomatis di Beranda dengan tombol **Catat 1-Tap**.
 - **De-Wordified UI**: Tata letak bersih, minimalis, dan elegan tanpa teks petunjuk bertele-tele.
 - **Glassmorphism Dock**: Bilah navigasi 5 tab jempol-ramah dengan tombol hero FAB (+) mengambang.
 - **Efek Haptik & Audio**: Umpan balik audio lembut dan getaran mikro haptik saat berganti tab, memilih kategori, dan mencatat transaksi.
 
 ### 2. Fitur Keuangan Inti
-- **1-Pintu Pencatatan Kilat**: Input teks alami (contoh: *"Kopi 25rb gopay"*) dan input suara (*real Web Speech API*).
+- **1-Pintu Pencatatan Kilat + Kalkulator Pintar (Batch 62)**: Input teks alami (contoh: *"Kopi 25rb gopay"*), input suara (*real Web Speech API*), serta kalkulator operasi hitung (`+`, `-`, `×`, `÷`, `=`) langsung di kolom nominal.
+- **Sistem Hashtag (`#kantor`, `#liburan`) & Flag Reimburse (Batch 63)**: Tandai transaksi dengan tag pintar atau klaim kantor langsung saat mencatat transaksi.
+- **Pembuat Kategori Instan & Modal Kustom (Batch 65)**: Tambah kategori/sumber pendapatan baru dengan pemilih warna & ikon secara langsung di modal transaksi maupun di Pengaturan.
 - **Dukungan Multi-Mata Uang**: IDR, USD, SGD, JPY, EUR, MYR dengan konversi kurs otomatis.
-- **Laporan Bulanan Eksekutif**: Bagan donat SVG interaktif (*touch-to-inspect*), grafik arus kas harian twin-bar, dan ekspor ringkasan 1-klik ke WhatsApp.
-- **Pagu Anggaran (Budgeting)**: Progres visual dinamis dengan indikator sisa dana dan peringatan *over-budget*.
-- **Multi-Rekening / Dompet**: Manajemen akun bank (BCA, Mandiri) dan e-wallet (GoPay, OVO) dengan diagram distribusi aset.
+- **Laporan Bulanan & Tren 6 Bulan (Batch 66)**: Bagan donat SVG interaktif (*touch-to-inspect*), grafik arus kas harian twin-bar, grafik perbandingan historis 6 bulan terakhir, rincian pengeluaran per dompet, dan ekspor ringkasan 1-klik ke WhatsApp.
+- **Auto-Budget 50/30/20 & Manajemen Target (Batch 69)**: Alokasi batas anggaran kategori otomatis 1-tap, fitur setor/tarik dana tabungan, dan kustomisasi target impian.
+- **Multi-Rekening & Rekonsiliasi Saldo Instan (Batch 64)**: Ketuk kartu dompet untuk melihat mutasi khusus dompet tersebut, mengedit info kartu, atau melakukan **Penyesuaian Saldo (Rekonsiliasi)** otomatis.
+- **Duplikat Transaksi 1-Tap & Filter Dompet (Batch 67)**: Ulangi transaksi harian dalam 1 sentuhan dan saring daftar transaksi berdasarkan dompet, tipe, atau rentang waktu.
 
 ### 3. Modul Finansial Tambahan (Laboratorium)
 - **Target Impian & Dana Darurat**: Tracking impian finansial dengan visualisasi tabungan terkumpul.

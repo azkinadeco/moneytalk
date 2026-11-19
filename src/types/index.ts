@@ -141,6 +141,12 @@ export interface AchievementBadge {
   unlockedAt?: string;
 }
 
+export interface ToastNotification {
+  id: string;
+  message: string;
+  type: 'success' | 'info' | 'error';
+}
+
 export type AppTheme = 'dark' | 'light' | 'oled' | 'indigo' | 'emerald';
 
 export type TabType =

@@ -1,10 +1,24 @@
 import React, { useState, useMemo } from 'react';
 import { useFinance } from '../../context/FinanceContext';
 import { Transaction } from '../../types';
-import { formatIDR, formatDateIndonesian, formatFullDate } from '../../utils/format';
+import {
+  formatIDR,
+  formatDateIndonesian,
+  formatFullDate,
+  getTodayDateString,
+} from '../../utils/format';
 import { DynamicIcon } from '../common/DynamicIcon';
-import { Search, Trash2, Calendar, Wallet as WalletIcon, Edit2 } from 'lucide-react';
+import {
+  Search,
+  Trash2,
+  Calendar,
+  Wallet as WalletIcon,
+  Edit2,
+  Copy,
+  FileCheck,
+} from 'lucide-react';
 import { sounds } from '../../utils/audio';
+import confetti from 'canvas-confetti';
 
 interface TransactionListViewProps {
   onOpenAddModal: () => void;
@@ -15,9 +29,19 @@ export const TransactionListView: React.FC<TransactionListViewProps> = ({
   onOpenAddModal,
   onEditTransaction,
 }) => {
-  const { transactions, categories, wallets, deleteTransaction, hideBalance, selectedMonth } = useFinance();
+  const {
+    transactions,
+    categories,
+    wallets,
+    addTransaction,
+    deleteTransaction,
+    hideBalance,
+    selectedMonth,
+  } = useFinance();
+
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedType, setSelectedType] = useState<string>('all');
+  const [selectedWalletFilter, setSelectedWalletFilter] = useState<string>('all');
   const [sortBy, setSortBy] = useState<'latest' | 'oldest' | 'highest' | 'lowest'>('latest');
   const [timeFilter, setTimeFilter] = useState<'month' | '7days' | 'all'>('month');
   const [activeTx, setActiveTx] = useState<Transaction | null>(null);
@@ -38,13 +62,24 @@ export const TransactionListView: React.FC<TransactionListViewProps> = ({
         // Type filter
         if (selectedType !== 'all' && tx.type !== selectedType) return false;
 
-        // Search query
+        // Wallet filter (Batch 67)
+        if (
+          selectedWalletFilter !== 'all' &&
+          tx.walletId !== selectedWalletFilter &&
+          tx.targetWalletId !== selectedWalletFilter
+        ) {
+          return false;
+        }
+
+        // Search query (Note, Category, or #Tag)
         if (searchQuery.trim()) {
           const q = searchQuery.toLowerCase();
           const noteMatch = (tx.note || '').toLowerCase().includes(q);
-          const catName = categories.find(c => c.id === tx.categoryId)?.name.toLowerCase() || '';
+          const catName =
+            categories.find(c => c.id === tx.categoryId)?.name.toLowerCase() || '';
           const catMatch = catName.includes(q);
-          if (!noteMatch && !catMatch) return false;
+          const tagMatch = (tx.tags || []).some(t => t.toLowerCase().includes(q));
+          if (!noteMatch && !catMatch && !tagMatch) return false;
         }
 
         return true;
@@ -55,7 +90,16 @@ export const TransactionListView: React.FC<TransactionListViewProps> = ({
         if (sortBy === 'oldest') return a.date.localeCompare(b.date);
         return b.date.localeCompare(a.date); // default latest
       });
-  }, [transactions, selectedMonth, selectedType, searchQuery, sortBy, timeFilter, categories]);
+  }, [
+    transactions,
+    selectedMonth,
+    selectedType,
+    selectedWalletFilter,
+    searchQuery,
+    sortBy,
+    timeFilter,
+    categories,
+  ]);
 
   // Group by date
   const groupedByDate = useMemo(() => {
@@ -81,27 +125,52 @@ export const TransactionListView: React.FC<TransactionListViewProps> = ({
   }, [filtered]);
 
   const getCategoryInfo = (catId: string) => {
-    return categories.find(c => c.id === catId) || {
-      name: 'Lain-lain',
-      icon: 'HelpCircle',
-      color: '#6B7280',
-    };
+    return (
+      categories.find(c => c.id === catId) || {
+        name: 'Lain-lain',
+        icon: 'HelpCircle',
+        color: '#6B7280',
+      }
+    );
   };
 
   const getWalletName = (id: string) => {
     return wallets.find(w => w.id === id)?.name || 'Dompet';
   };
 
+  // Batch 67: 1-Tap Duplicate Transaction for Today
+  const handleDuplicateTransaction = (tx: Transaction) => {
+    const now = new Date();
+    const time = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+    addTransaction({
+      type: tx.type,
+      amount: tx.amount,
+      originalAmount: tx.originalAmount,
+      currency: tx.currency,
+      categoryId: tx.categoryId,
+      walletId: tx.walletId,
+      targetWalletId: tx.targetWalletId,
+      date: getTodayDateString(),
+      time,
+      note: tx.note,
+      tags: tx.tags,
+      isReimburse: tx.isReimburse,
+      reimburseStatus: tx.isReimburse ? 'pending' : undefined,
+    });
+    confetti({ particleCount: 35, spread: 55, origin: { y: 0.8 } });
+    setActiveTx(null);
+  };
+
   return (
-    <div className="space-y-4 pb-24">
+    <div className="space-y-3.5 pb-24">
       {/* Search & Filter Header */}
-      <div className="space-y-3">
+      <div className="space-y-2.5">
         {/* Search Bar (Anti-Zoom: 16px min on mobile) */}
         <div className="relative">
           <Search className="w-4 h-4 text-zinc-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
           <input
             type="text"
-            placeholder="Cari transaksi atau catatan..."
+            placeholder="Cari catatan, kategori, atau #tag..."
             value={searchQuery}
             onChange={e => setSearchQuery(e.target.value)}
             className="w-full min-h-[44px] pl-10 pr-16 py-2.5 rounded-2xl bg-white dark:bg-zinc-900 border border-zinc-200/80 dark:border-zinc-800 text-[16px] sm:text-sm text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 transition-all shadow-ios-sm"
@@ -119,60 +188,125 @@ export const TransactionListView: React.FC<TransactionListViewProps> = ({
           )}
         </div>
 
-        {/* Filter Pills */}
-        <div className="flex items-center justify-between gap-2 overflow-x-auto pb-1 no-scrollbar text-xs">
-          <div className="flex gap-1.5 shrink-0">
+        {/* Time Range & Sort Row */}
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex gap-1 bg-zinc-100 dark:bg-zinc-900 p-1 rounded-xl border border-zinc-200/60 dark:border-zinc-800">
             {[
-              { key: 'all', label: 'Semua' },
-              { key: 'expense', label: 'Keluar' },
-              { key: 'income', label: 'Masuk' },
-              { key: 'transfer', label: 'Transfer' },
-            ].map(f => (
+              { id: 'month', label: 'Bulan Ini' },
+              { id: '7days', label: '7 Hari' },
+              { id: 'all', label: 'Semua' },
+            ].map(tf => (
               <button
-                key={f.key}
+                key={tf.id}
+                type="button"
                 onClick={() => {
                   sounds.playPop();
-                  sounds.vibrate(10);
-                  setSelectedType(f.key);
+                  setTimeFilter(tf.id as any);
                 }}
-                className={`min-h-[38px] px-3.5 py-1.5 rounded-xl font-semibold transition-all active:scale-95 flex items-center justify-center ${
-                  selectedType === f.key
-                    ? 'bg-zinc-900 text-white dark:bg-white dark:text-zinc-900 shadow-sm'
-                    : 'bg-zinc-100 text-zinc-600 dark:bg-zinc-900 dark:text-zinc-400 border border-zinc-200 dark:border-zinc-800'
+                className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all ${
+                  timeFilter === tf.id
+                    ? 'bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 shadow-xs'
+                    : 'text-zinc-500'
                 }`}
               >
-                {f.label}
+                {tf.label}
               </button>
             ))}
           </div>
 
-          {/* Sort Selector */}
           <select
             value={sortBy}
             onChange={e => {
               sounds.playPop();
               setSortBy(e.target.value as 'latest' | 'oldest' | 'highest' | 'lowest');
             }}
-            className="min-h-[38px] px-3 py-1.5 rounded-xl bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-[16px] sm:text-xs text-zinc-700 dark:text-zinc-300 font-medium shrink-0 focus:outline-none"
+            className="min-h-[36px] px-2.5 py-1 rounded-xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-[16px] sm:text-xs text-zinc-700 dark:text-zinc-300 font-semibold shrink-0 focus:outline-none"
           >
             <option value="latest">Terbaru</option>
             <option value="oldest">Terlama</option>
-            <option value="highest">Nominal Terbesar</option>
-            <option value="lowest">Nominal Terkecil</option>
+            <option value="highest">Terbesar</option>
+            <option value="lowest">Terkecil</option>
           </select>
+        </div>
+
+        {/* Filter Pills: Type & Wallet */}
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar text-xs">
+          {[
+            { key: 'all', label: 'Semua Tipe' },
+            { key: 'expense', label: 'Keluar' },
+            { key: 'income', label: 'Masuk' },
+            { key: 'transfer', label: 'Transfer' },
+          ].map(f => (
+            <button
+              key={f.key}
+              onClick={() => {
+                sounds.playPop();
+                sounds.vibrate(10);
+                setSelectedType(f.key);
+              }}
+              className={`min-h-[34px] px-3 py-1 rounded-xl font-bold transition-all active:scale-95 flex items-center justify-center shrink-0 ${
+                selectedType === f.key
+                  ? 'bg-zinc-900 text-white dark:bg-white dark:text-zinc-900 shadow-xs'
+                  : 'bg-white text-zinc-600 dark:bg-zinc-900 dark:text-zinc-400 border border-zinc-200/80 dark:border-zinc-800'
+              }`}
+            >
+              {f.label}
+            </button>
+          ))}
+
+          <span className="text-zinc-300 dark:text-zinc-700 mx-0.5">|</span>
+
+          <button
+            onClick={() => {
+              sounds.playPop();
+              setSelectedWalletFilter('all');
+            }}
+            className={`min-h-[34px] px-3 py-1 rounded-xl font-bold transition-all active:scale-95 shrink-0 ${
+              selectedWalletFilter === 'all'
+                ? 'bg-emerald-500 text-white shadow-xs'
+                : 'bg-white text-zinc-600 dark:bg-zinc-900 dark:text-zinc-400 border border-zinc-200/80 dark:border-zinc-800'
+            }`}
+          >
+            Semua Dompet
+          </button>
+
+          {wallets.map(w => (
+            <button
+              key={w.id}
+              onClick={() => {
+                sounds.playPop();
+                setSelectedWalletFilter(w.id);
+              }}
+              className={`min-h-[34px] px-3 py-1 rounded-xl font-bold transition-all active:scale-95 flex items-center gap-1.5 shrink-0 ${
+                selectedWalletFilter === w.id
+                  ? 'bg-emerald-500 text-white shadow-xs'
+                  : 'bg-white text-zinc-600 dark:bg-zinc-900 dark:text-zinc-400 border border-zinc-200/80 dark:border-zinc-800'
+              }`}
+            >
+              <span
+                className="w-2 h-2 rounded-full"
+                style={{ backgroundColor: selectedWalletFilter === w.id ? '#fff' : w.color }}
+              />
+              <span>{w.name}</span>
+            </button>
+          ))}
         </div>
       </div>
 
       {/* Summary Mini Bar */}
       <div className="grid grid-cols-2 gap-2 p-3 rounded-2xl bg-white dark:bg-zinc-900 border border-zinc-200/80 dark:border-zinc-800 shadow-ios-sm">
         <div>
-          <span className="text-[10px] text-zinc-400 uppercase font-semibold">Total Masuk</span>
+          <span className="text-[10px] text-zinc-400 uppercase font-semibold">
+            Total Masuk ({filtered.filter(t => t.type === 'income').length})
+          </span>
           <p className="text-sm font-bold text-emerald-500 tabular-nums">
             {hideBalance ? '••••••' : formatIDR(totals.income)}
           </p>
         </div>
         <div>
-          <span className="text-[10px] text-zinc-400 uppercase font-semibold">Total Keluar</span>
+          <span className="text-[10px] text-zinc-400 uppercase font-semibold">
+            Total Keluar ({filtered.filter(t => t.type === 'expense').length})
+          </span>
           <p className="text-sm font-bold text-rose-500 tabular-nums">
             {hideBalance ? '••••••' : formatIDR(totals.expense)}
           </p>
@@ -214,7 +348,9 @@ export const TransactionListView: React.FC<TransactionListViewProps> = ({
                       ? { name: 'Transfer Antar Akun', icon: 'ArrowLeftRight', color: '#6366F1' }
                       : getCategoryInfo(tx.categoryId);
                     const sourceWal = getWalletName(tx.walletId);
-                    const targetWal = tx.targetWalletId ? getWalletName(tx.targetWalletId) : null;
+                    const targetWal = tx.targetWalletId
+                      ? getWalletName(tx.targetWalletId)
+                      : null;
 
                     return (
                       <div
@@ -231,13 +367,27 @@ export const TransactionListView: React.FC<TransactionListViewProps> = ({
                           </div>
 
                           <div className="min-w-0">
-                            <p className="text-sm font-bold text-zinc-900 dark:text-zinc-100 truncate">
-                              {tx.note || cat.name}
-                            </p>
+                            <div className="flex items-center gap-1.5">
+                              <p className="text-sm font-bold text-zinc-900 dark:text-zinc-100 truncate">
+                                {tx.note || cat.name}
+                              </p>
+                              {tx.isReimburse && (
+                                <span className="px-1.5 py-0.5 rounded-md bg-blue-500/10 text-blue-500 text-[9px] font-extrabold shrink-0">
+                                  Reimburse
+                                </span>
+                              )}
+                            </div>
                             <div className="flex items-center gap-1.5 text-[11px] text-zinc-400 mt-0.5 truncate">
                               <span>{cat.name}</span>
                               <span>•</span>
-                              <span>{isTransfer ? `${sourceWal} → ${targetWal}` : sourceWal}</span>
+                              <span>
+                                {isTransfer ? `${sourceWal} → ${targetWal}` : sourceWal}
+                              </span>
+                              {tx.tags && tx.tags.length > 0 && (
+                                <span className="text-emerald-500 font-semibold">
+                                  {tx.tags.join(' ')}
+                                </span>
+                              )}
                             </div>
                           </div>
                         </div>
@@ -256,9 +406,7 @@ export const TransactionListView: React.FC<TransactionListViewProps> = ({
                               ? '••••••'
                               : `${isExpense ? '-' : isTransfer ? '' : '+'}${formatIDR(tx.amount)}`}
                           </p>
-                          <p className="text-[11px] text-zinc-400 mt-0.5">
-                            {tx.time || ''}
-                          </p>
+                          <p className="text-[11px] text-zinc-400 mt-0.5">{tx.time || ''}</p>
                         </div>
                       </div>
                     );
@@ -278,23 +426,47 @@ export const TransactionListView: React.FC<TransactionListViewProps> = ({
             <div className="w-12 h-1.5 bg-zinc-300 dark:bg-zinc-700 rounded-full mx-auto mb-4" />
 
             <div className="text-center pb-4 border-b border-zinc-100 dark:border-zinc-800">
-              <span
-                className={`inline-block px-3 py-1 rounded-full text-xs font-semibold uppercase tracking-wider mb-2 ${
-                  activeTx.type === 'expense'
-                    ? 'bg-rose-500/10 text-rose-500'
+              <div className="flex items-center justify-center gap-1.5 mb-2">
+                <span
+                  className={`inline-block px-3 py-1 rounded-full text-xs font-semibold uppercase tracking-wider ${
+                    activeTx.type === 'expense'
+                      ? 'bg-rose-500/10 text-rose-500'
+                      : activeTx.type === 'transfer'
+                      ? 'bg-indigo-500/10 text-indigo-500'
+                      : 'bg-emerald-500/10 text-emerald-500'
+                  }`}
+                >
+                  {activeTx.type === 'expense'
+                    ? 'Pengeluaran'
                     : activeTx.type === 'transfer'
-                    ? 'bg-indigo-500/10 text-indigo-500'
-                    : 'bg-emerald-500/10 text-emerald-500'
-                }`}
-              >
-                {activeTx.type === 'expense' ? 'Pengeluaran' : activeTx.type === 'transfer' ? 'Transfer' : 'Pemasukan'}
-              </span>
-              <h3 className="text-3xl font-extrabold text-zinc-900 dark:text-zinc-100">
+                    ? 'Transfer'
+                    : 'Pemasukan'}
+                </span>
+                {activeTx.isReimburse && (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-blue-500/10 text-blue-500">
+                    <FileCheck className="w-3.5 h-3.5" />
+                    Reimburse Kantor
+                  </span>
+                )}
+              </div>
+
+              <h3 className="text-3xl font-extrabold text-zinc-900 dark:text-zinc-100 tabular-nums">
                 {formatIDR(activeTx.amount)}
               </h3>
-              <p className="text-sm text-zinc-500 mt-1">
-                {activeTx.note || 'Tanpa Catatan'}
-              </p>
+              <p className="text-sm text-zinc-500 mt-1">{activeTx.note || 'Tanpa Catatan'}</p>
+
+              {activeTx.tags && activeTx.tags.length > 0 && (
+                <div className="flex items-center justify-center gap-1.5 mt-2">
+                  {activeTx.tags.map(tag => (
+                    <span
+                      key={tag}
+                      className="px-2 py-0.5 rounded-lg bg-emerald-500/10 text-emerald-500 text-[11px] font-bold"
+                    >
+                      {tag}
+                    </span>
+                  ))}
+                </div>
+              )}
             </div>
 
             <div className="py-4 space-y-3 text-sm">
@@ -315,24 +487,37 @@ export const TransactionListView: React.FC<TransactionListViewProps> = ({
                 </span>
                 <span className="font-medium text-zinc-900 dark:text-zinc-100">
                   {activeTx.type === 'transfer'
-                    ? `${getWalletName(activeTx.walletId)} → ${activeTx.targetWalletId ? getWalletName(activeTx.targetWalletId) : ''}`
+                    ? `${getWalletName(activeTx.walletId)} → ${
+                        activeTx.targetWalletId ? getWalletName(activeTx.targetWalletId) : ''
+                      }`
                     : getWalletName(activeTx.walletId)}
                 </span>
               </div>
             </div>
 
-            <div className="pt-3 space-y-2.5">
-              <button
-                onClick={() => {
-                  const txToEdit = activeTx;
-                  setActiveTx(null);
-                  onEditTransaction(txToEdit);
-                }}
-                className="w-full min-h-[44px] py-3 px-4 rounded-2xl bg-emerald-500 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-sm hover:bg-emerald-600 transition-colors active:scale-95"
-              >
-                <Edit2 className="w-4 h-4" />
-                Edit Transaksi
-              </button>
+            <div className="pt-2 space-y-2.5">
+              <div className="grid grid-cols-2 gap-2.5">
+                <button
+                  onClick={() => {
+                    const txToEdit = activeTx;
+                    setActiveTx(null);
+                    onEditTransaction(txToEdit);
+                  }}
+                  className="min-h-[44px] py-3 px-4 rounded-2xl bg-emerald-500 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-sm hover:bg-emerald-600 transition-colors active:scale-95"
+                >
+                  <Edit2 className="w-4 h-4" />
+                  Edit Transaksi
+                </button>
+
+                {/* Batch 67: 1-Tap Duplicate Transaction Today */}
+                <button
+                  onClick={() => handleDuplicateTransaction(activeTx)}
+                  className="min-h-[44px] py-3 px-4 rounded-2xl bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 font-bold text-xs flex items-center justify-center gap-2 hover:bg-indigo-500/20 transition-colors active:scale-95"
+                >
+                  <Copy className="w-4 h-4" />
+                  Duplikat Hari Ini
+                </button>
+              </div>
 
               <div className="flex gap-2.5">
                 <button

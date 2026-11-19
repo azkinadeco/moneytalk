@@ -7,6 +7,7 @@ import {
   Settings,
   Volume2,
   VolumeX,
+  Lock,
 } from 'lucide-react';
 import { getMonthName } from '../../utils/format';
 import { sounds } from '../../utils/audio';
@@ -26,6 +27,8 @@ export const Header: React.FC<HeaderProps> = ({
     toggleSound,
     selectedMonth,
     setSelectedMonth,
+    pinLockEnabled,
+    lockApp,
   } = useFinance();
 
   const [showMonthDropdown, setShowMonthDropdown] = useState(false);
@@ -129,6 +132,21 @@ export const Header: React.FC<HeaderProps> = ({
             <Bell className="w-4 h-4" />
             <span className="w-2 h-2 rounded-full bg-emerald-500 absolute top-2.5 right-2.5 ring-2 ring-white dark:ring-zinc-900" />
           </button>
+
+          {pinLockEnabled && (
+            <button
+              onClick={() => {
+                sounds.playPop();
+                sounds.vibrate(15);
+                lockApp();
+              }}
+              aria-label="Kunci Aplikasi"
+              title="Kunci Aplikasi"
+              className="w-10 h-10 rounded-full flex items-center justify-center text-amber-500 hover:bg-amber-500/10 active:scale-90 transition-all"
+            >
+              <Lock className="w-4 h-4" />
+            </button>
+          )}
 
           <button
             onClick={() => {

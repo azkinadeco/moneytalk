@@ -1,0 +1,62 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <defs>
+    <!-- Background Gradient -->
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#14151b"/>
+      <stop offset="100%" stop-color="#050508"/>
+    </linearGradient>
+
+    <!-- Radial Gold Aura -->
+    <radialGradient id="goldAura" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#f59e0b" stop-opacity="0.25"/>
+      <stop offset="100%" stop-color="#f59e0b" stop-opacity="0.0"/>
+    </radialGradient>
+
+    <!-- Champagne Gold Gradient for 'M' -->
+    <linearGradient id="goldM" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fef3c7"/>
+      <stop offset="45%" stop-color="#f59e0b"/>
+      <stop offset="100%" stop-color="#b45309"/>
+    </linearGradient>
+
+    <!-- Emerald Green Gradient for 'T' -->
+    <linearGradient id="emeraldT" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#34d399"/>
+      <stop offset="50%" stop-color="#10b981"/>
+      <stop offset="100%" stop-color="#047857"/>
+    </linearGradient>
+
+    <!-- Gold Border Gradient -->
+    <linearGradient id="goldRim" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fef3c7" stop-opacity="0.6"/>
+      <stop offset="100%" stop-color="#f59e0b" stop-opacity="0.2"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Squircle Base -->
+  <rect width="512" height="512" rx="115" fill="url(#bgGrad)"/>
+  <rect width="506" height="506" x="3" y="3" rx="112" fill="none" stroke="url(#goldRim)" stroke-width="3"/>
+  <circle cx="256" cy="256" r="180" fill="url(#goldAura)"/>
+
+  <!-- Monogram Group (Centered at 256, 256) -->
+  <g transform="translate(256, 256) scale(1.15)">
+    <!-- Architectural 'M' Ribbon -->
+    <path d="M -130 120 L -104 120 L -104 -69 L 0 20 L 104 -69 L 104 120 L 130 120 L 130 -95 L 112 -95 L 0 5 L -112 -95 L -130 -95 Z" 
+          fill="url(#goldM)" 
+          filter="drop-shadow(0 6px 12px rgba(0,0,0,0.5))"/>
+
+    <!-- Pillar 'T' Ribbon -->
+    <!-- Crossbar -->
+    <rect x="-105" y="-138" width="210" height="26" rx="6" fill="url(#emeraldT)" filter="drop-shadow(0 2px 8px rgba(16,185,129,0.4))"/>
+    <!-- Vertical Stem -->
+    <rect x="-13" y="-135" width="26" height="250" rx="6" fill="url(#emeraldT)"/>
+
+    <!-- Sovereign Vault Medallion (✦) -->
+    <g transform="translate(0, 22)">
+      <circle cx="0" cy="0" r="34" fill="#0c0d11" stroke="#fcd34d" stroke-width="3.5"/>
+      <circle cx="0" cy="0" r="34" fill="#f59e0b" opacity="0.15"/>
+      <!-- 4-point Diamond Star -->
+      <polygon points="0,-18 4.5,-4.5 18,0 4.5,4.5 0,18 -4.5,4.5 -18,0 -4.5,-4.5" fill="#fef08a"/>
+    </g>
+  </g>
+</svg>

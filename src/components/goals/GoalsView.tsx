@@ -30,6 +30,7 @@ export const GoalsView: React.FC = () => {
     monthlyStats,
     userProfile,
     hideBalance,
+    getWalletBalance,
   } = useFinance();
 
   const [showAddGoalModal, setShowAddGoalModal] = useState(false);
@@ -166,19 +167,16 @@ export const GoalsView: React.FC = () => {
     .reduce((sum, b) => sum + b.limit, 0);
 
   return (
-    <div className="space-y-6 pb-24">
+    <div className="space-y-6">
       {/* SECTION 1: Target Menabung / Financial Goals */}
       <div className="space-y-3">
         <div className="flex items-center justify-between px-1">
-          <h2 className="text-base font-bold text-zinc-900 dark:text-zinc-100 flex items-center gap-1.5">
-            <Target className="w-4 h-4 text-emerald-500" />
-            <span>Target Tabungan</span>
-          </h2>
+          <h2 className="section-title">Target tabungan</h2>
           <button
             onClick={handleOpenCreateModal}
-            className="min-h-[36px] flex items-center gap-1 text-xs font-bold text-emerald-500 bg-emerald-50 dark:bg-emerald-950/40 px-3 py-1.5 rounded-xl hover:bg-emerald-100 transition-colors active:scale-95"
+            className="link min-h-[32px]"
           >
-            <Plus className="w-3.5 h-3.5 stroke-[3]" />
+            <Plus className="w-3.5 h-3.5" />
             <span>Tambah</span>
           </button>
         </div>
@@ -197,7 +195,7 @@ export const GoalsView: React.FC = () => {
             return (
               <div
                 key={goal.id}
-                className="p-4 rounded-3xl bg-white dark:bg-zinc-900 border border-zinc-200/80 dark:border-zinc-800 shadow-ios-sm space-y-2.5"
+                className="p-4 card space-y-2.5"
               >
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex items-center gap-2.5 min-w-0">
@@ -266,9 +264,7 @@ export const GoalsView: React.FC = () => {
       <div className="space-y-3 pt-1">
         <div className="flex items-center justify-between px-1">
           <div>
-            <h2 className="text-base font-bold text-zinc-900 dark:text-zinc-100">
-              Batas Anggaran ({getMonthName(selectedMonth)})
-            </h2>
+            <h2 className="section-title">Batas anggaran bulanan</h2>
             {totalBudget > 0 && (
               <p className="text-[11px] text-zinc-400 tabular-nums">
                 Total Alokasi: {hideBalance ? '••••••' : formatIDR(totalBudget)}
@@ -279,14 +275,14 @@ export const GoalsView: React.FC = () => {
           <button
             type="button"
             onClick={handleAutoAllocateBudgets}
-            className="min-h-[36px] px-3 py-1.5 rounded-xl bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 text-xs font-bold flex items-center gap-1 hover:bg-indigo-500/20 active:scale-95 transition-all"
+            className="btn btn-sm shrink-0 bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-500/20"
           >
             <Sparkles className="w-3.5 h-3.5" />
-            <span>Auto-Budget</span>
+            <span>Atur otomatis</span>
           </button>
         </div>
 
-        <div className="bg-white dark:bg-zinc-900 rounded-3xl border border-zinc-200/80 dark:border-zinc-800 shadow-ios-sm p-4 divide-y divide-zinc-100 dark:divide-zinc-800">
+        <div className="card p-4 divide-y divide-zinc-100 dark:divide-zinc-800">
           {categories
             .filter(c => c.type === 'expense')
             .map(cat => {
@@ -473,7 +469,7 @@ export const GoalsView: React.FC = () => {
                 >
                   {wallets.map(w => (
                     <option key={w.id} value={w.id}>
-                      {w.icon} {w.name}
+                      {w.name} · {formatIDR(getWalletBalance(w.id), true)}
                     </option>
                   ))}
                 </select>

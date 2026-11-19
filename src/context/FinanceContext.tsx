@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useMemo } from 'react';
+import React, { createContext, useContext, useState, useEffect, useMemo, useRef } from 'react';
 import {
   Transaction,
   Category,
@@ -14,6 +14,7 @@ import {
   InvestmentAsset,
   ShoppingItem,
   ToastNotification,
+  ToastAction,
 } from '../types';
 import {
   INITIAL_CATEGORIES,
@@ -70,7 +71,8 @@ interface FinanceContextType {
   shoppingItems: ShoppingItem[];
 
   toast: ToastNotification | null;
-  showToast: (message: string, type?: 'success' | 'info' | 'error') => void;
+  showToast: (message: string, type?: 'success' | 'info' | 'error', action?: ToastAction) => void;
+  dismissToast: () => void;
 
   theme: 'dark' | 'light';
   appTheme: AppTheme;
@@ -97,6 +99,7 @@ interface FinanceContextType {
   addTransaction: (tx: Omit<Transaction, 'id' | 'createdAt'>) => void;
   updateTransaction: (id: string, tx: Partial<Transaction>) => void;
   deleteTransaction: (id: string) => void;
+  duplicateTransaction: (tx: Transaction) => void;
   updateReimburseStatus: (id: string, status: 'pending' | 'claimed' | 'received', walletId?: string) => void;
 
   // Wallets
@@ -155,6 +158,7 @@ interface FinanceContextType {
 
   // System
   resetData: () => void;
+  clearAllData: () => void;
   exportJSON: () => void;
   importJSON: (jsonString: string) => boolean;
   exportCSV: () => void;
@@ -260,12 +264,21 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [selectedMonth, setSelectedMonth] = useState<string>(getCurrentMonthString());
 
   const [toast, setToast] = useState<ToastNotification | null>(null);
-  const showToast = (message: string, type: 'success' | 'info' | 'error' = 'success') => {
-    setToast({ id: String(Date.now()), message, type });
-    if (type === 'success') sounds.playSuccess();
-    else sounds.playPop();
-    sounds.vibrate(20);
-    setTimeout(() => setToast(null), 3500);
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const dismissToast = () => {
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    setToast(null);
+  };
+  const showToast = (
+    message: string,
+    type: 'success' | 'info' | 'error' = 'success',
+    action?: ToastAction
+  ) => {
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    setToast({ id: String(Date.now()), message, type, action });
+    if (type === 'error') sounds.playPop();
+    sounds.vibrate(type === 'error' ? 30 : 15);
+    toastTimer.current = setTimeout(() => setToast(null), action ? 5000 : 2800);
   };
 
   const [categories, setCategories] = useState<Category[]>(() => {
@@ -308,10 +321,23 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
     return saved ? JSON.parse(saved) : INITIAL_SHOPPING;
   });
 
-  const [transactions, setTransactions] = useState<Transaction[]>(() => {
+  const [rawTransactions, setTransactions] = useState<Transaction[]>(() => {
     const saved = localStorage.getItem(STORAGE_KEYS.TRANSACTIONS);
     return saved ? JSON.parse(saved) : getInitialTransactions();
   });
+
+  // Always expose transactions newest-first (date, then time, then creation order)
+  const transactions = useMemo(
+    () =>
+      [...rawTransactions].sort((a, b) => {
+        const byDate = b.date.localeCompare(a.date);
+        if (byDate !== 0) return byDate;
+        const byTime = (b.time || '').localeCompare(a.time || '');
+        if (byTime !== 0) return byTime;
+        return (b.createdAt || 0) - (a.createdAt || 0);
+      }),
+    [rawTransactions]
+  );
 
   // Sync to local storage
   useEffect(() => {
@@ -319,8 +345,8 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
   }, [userProfile]);
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.TRANSACTIONS, JSON.stringify(transactions));
-  }, [transactions]);
+    localStorage.setItem(STORAGE_KEYS.TRANSACTIONS, JSON.stringify(rawTransactions));
+  }, [rawTransactions]);
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEYS.CATEGORIES, JSON.stringify(categories));
@@ -333,6 +359,19 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
   useEffect(() => {
     localStorage.setItem(STORAGE_KEYS.BUDGETS, JSON.stringify(budgets));
   }, [budgets]);
+
+  // Budgets roll over: when a new month starts with no limits, copy the latest month's limits
+  useEffect(() => {
+    if (selectedMonth < getCurrentMonthString()) return;
+    if (budgets.some(b => b.month === selectedMonth)) return;
+    const previousMonths = budgets.map(b => b.month).filter(m => m < selectedMonth).sort();
+    const latest = previousMonths[previousMonths.length - 1];
+    if (!latest) return;
+    const carried = budgets
+      .filter(b => b.month === latest)
+      .map((b, i) => ({ ...b, id: `b-${Date.now()}-${i}`, month: selectedMonth }));
+    setBudgets(prev => [...prev, ...carried]);
+  }, [selectedMonth, budgets]);
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEYS.GOALS, JSON.stringify(goals));
@@ -622,8 +661,35 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
   };
 
   const deleteTransaction = (id: string) => {
+    const removed = rawTransactions.find(t => t.id === id);
     setTransactions(prev => prev.filter(t => t.id !== id));
     sounds.vibrate(40);
+    if (removed) {
+      showToast('Transaksi dihapus', 'info', {
+        label: 'Urungkan',
+        onClick: () => setTransactions(prev => [removed, ...prev]),
+      });
+    }
+  };
+
+  const duplicateTransaction = (tx: Transaction) => {
+    const now = new Date();
+    addTransaction({
+      type: tx.type,
+      amount: tx.amount,
+      originalAmount: tx.originalAmount,
+      currency: tx.currency,
+      categoryId: tx.categoryId,
+      walletId: tx.walletId,
+      targetWalletId: tx.targetWalletId,
+      date: getTodayDateString(),
+      time: `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`,
+      note: tx.note,
+      tags: tx.tags,
+      isReimburse: tx.isReimburse,
+      reimburseStatus: tx.isReimburse ? 'pending' : undefined,
+    });
+    showToast('Transaksi diduplikat ke hari ini');
   };
 
   const updateReimburseStatus = (
@@ -974,6 +1040,19 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
     sounds.playPop();
   };
 
+  // Start fresh: keep categories & wallets (balances zeroed), wipe all records
+  const clearAllData = () => {
+    setTransactions([]);
+    setBudgets([]);
+    setGoals([]);
+    setRecurring([]);
+    setDebts([]);
+    setInvestments([]);
+    setShoppingItems([]);
+    setWallets(prev => prev.map(w => ({ ...w, initialBalance: 0 })));
+    showToast('Semua data dikosongkan. Selamat mulai dari nol!');
+  };
+
   // Export JSON
   const exportJSON = () => {
     const data = {
@@ -993,7 +1072,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `moneytalk_backup_${new Date().toISOString().split('T')[0]}.json`;
+    a.download = `moneytalk_backup_${getTodayDateString()}.json`;
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -1069,7 +1148,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `moneytalk_transaksi_${new Date().toISOString().split('T')[0]}.csv`;
+    a.download = `moneytalk_transaksi_${getTodayDateString()}.csv`;
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -1098,6 +1177,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
         clearBoughtShoppingItems,
         toast,
         showToast,
+        dismissToast,
         theme: appTheme === 'light' ? 'light' : 'dark',
         appTheme,
         setAppTheme,
@@ -1118,6 +1198,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
         addTransaction,
         updateTransaction,
         deleteTransaction,
+        duplicateTransaction,
         updateReimburseStatus,
         addWallet,
         updateWallet,
@@ -1144,6 +1225,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
         healthScoreData,
         monthComparison,
         resetData,
+        clearAllData,
         exportJSON,
         importJSON,
         exportCSV,

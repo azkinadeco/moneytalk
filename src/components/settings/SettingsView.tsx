@@ -77,12 +77,14 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     exportJSON,
     importJSON,
     resetData,
+    clearAllData,
+    showToast,
   } = useFinance();
 
   const [activeSection, setActiveSection] = useState<
     'categories' | 'wallets' | 'data' | 'extra' | 'profile' | 'security'
-  >('categories');
-  const [categoryTypeFilter, setCategoryTypeFilter] = useState<'income' | 'expense'>('income');
+  >('profile');
+  const [categoryTypeFilter, setCategoryTypeFilter] = useState<'income' | 'expense'>('expense');
 
   // Edit Category State
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
@@ -218,19 +220,19 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       title: profileTitle.trim() || 'Pengelola Keuangan Bijak',
     });
 
-    alert('Profil berhasil diperbarui!');
+    showToast('Profil diperbarui');
   };
 
   // Handle PIN Save
   const handleSavePin = (e: React.FormEvent) => {
     e.preventDefault();
     if (newPin.length !== 4) {
-      alert('PIN harus terdiri dari 4 digit angka');
+      showToast('PIN harus 4 digit angka', 'error');
       return;
     }
     setAppPin(newPin);
     setNewPin('');
-    alert('PIN keamanan berhasil diperbarui!');
+    showToast('PIN keamanan diperbarui');
   };
 
   // Handle File Import (F-07)
@@ -257,23 +259,16 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   };
 
   return (
-    <div className="space-y-4 pb-28">
-      {/* Title & Navigation Pill Menu */}
-      <div className="flex items-center justify-between">
-        <h2 className="text-xl font-extrabold text-zinc-900 dark:text-zinc-100 tracking-tight">
-          Pengaturan
-        </h2>
-      </div>
-
+    <div className="space-y-4">
       {/* Segmented Section Bar (Apple HIG 44px min touch target) */}
-      <div className="flex gap-1.5 overflow-x-auto pb-1 no-scrollbar">
+      <div className="flex gap-1.5 overflow-x-auto no-scrollbar -mx-4 px-4">
         {[
+          { id: 'profile', label: 'Profil', icon: User },
           { id: 'categories', label: 'Kategori', icon: Tags },
           { id: 'wallets', label: 'Dompet', icon: WalletIcon },
           { id: 'data', label: 'Data', icon: Database },
-          { id: 'extra', label: 'Ekstra', icon: Sliders },
-          { id: 'profile', label: 'Profil', icon: User },
           { id: 'security', label: 'Keamanan', icon: Lock },
+          { id: 'extra', label: 'Lainnya', icon: Sliders },
         ].map(s => {
           const Icon = s.icon;
           const isActive = activeSection === s.id;
@@ -285,11 +280,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 sounds.vibrate(10);
                 setActiveSection(s.id as any);
               }}
-              className={`min-h-[44px] px-3.5 py-2 rounded-2xl flex items-center gap-1.5 text-xs font-bold transition-all shrink-0 active:scale-95 ${
-                isActive
-                  ? 'bg-emerald-500 text-white shadow-md shadow-emerald-500/25'
-                  : 'bg-white dark:bg-zinc-900 text-zinc-600 dark:text-zinc-400 border border-zinc-200/80 dark:border-zinc-800'
-              }`}
+              className={`chip min-h-[38px] ${isActive ? 'chip-active' : ''}`}
             >
               <Icon className="w-3.5 h-3.5" />
               <span>{s.label}</span>
@@ -301,7 +292,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       {/* SECTION 1: UBAH KATEGORI & SUMBER PENDAPATAN (F-03 Canon) */}
       {activeSection === 'categories' && (
         <div className="space-y-3">
-          <div className="p-4 rounded-3xl bg-white dark:bg-zinc-900 border border-zinc-200/80 dark:border-zinc-800 shadow-ios-sm">
+          <div className="p-4 card">
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-sm font-bold text-zinc-900 dark:text-zinc-100">
                 Kelola Kategori
@@ -407,7 +398,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       {/* SECTION 2: UBAH AKUN & DOMPET */}
       {activeSection === 'wallets' && (
         <div className="space-y-3">
-          <div className="p-4 rounded-3xl bg-white dark:bg-zinc-900 border border-zinc-200/80 dark:border-zinc-800 shadow-ios-sm">
+          <div className="p-4 card">
             <h3 className="text-sm font-bold text-zinc-900 dark:text-zinc-100 mb-3">
               Daftar Dompet
             </h3>
@@ -482,7 +473,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           )}
 
           {/* Action List */}
-          <div className="p-4 rounded-3xl bg-white dark:bg-zinc-900 border border-zinc-200/80 dark:border-zinc-800 shadow-ios-sm space-y-2">
+          <div className="p-4 card space-y-2">
             <h3 className="text-sm font-bold text-zinc-900 dark:text-zinc-100 mb-2">
               Cadangan & Ekspor
             </h3>
@@ -558,15 +549,30 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             {/* Reset Data Demo */}
             <button
               onClick={() => {
-                if (confirm('Yakin ingin mereset data kembali ke pengaturan demo awal? Semua transaksi saat ini akan digantikan.')) {
+                if (confirm('Kembalikan ke data contoh (demo)? Semua data saat ini akan diganti.')) {
                   resetData();
-                  alert('Data berhasil direset ke demo!');
+                  showToast('Data demo dipulihkan');
                 }
               }}
-              className="w-full min-h-[44px] px-4 py-2.5 rounded-2xl bg-rose-50 dark:bg-rose-950/30 text-rose-500 text-xs font-bold flex items-center justify-center gap-2 active:scale-98 transition-all"
+              className="btn-secondary w-full"
             >
               <RefreshCw className="w-4 h-4" />
-              <span>Reset Ulang ke Data Demo</span>
+              <span>Pakai data contoh (demo)</span>
+            </button>
+            <button
+              onClick={() => {
+                if (
+                  confirm(
+                    'Kosongkan semua transaksi, anggaran, target, tagihan, hutang & investasi? Kategori dan nama dompet tetap ada. Sebaiknya backup dulu.'
+                  )
+                ) {
+                  clearAllData();
+                }
+              }}
+              className="btn-danger w-full"
+            >
+              <Trash2 className="w-4 h-4" />
+              <span>Mulai dari nol (kosongkan data)</span>
             </button>
           </div>
         </div>
@@ -575,7 +581,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       {/* SECTION 4: FITUR EKSTRA & LABORATORIUM (F-05) */}
       {activeSection === 'extra' && (
         <div className="space-y-3">
-          <div className="p-4 rounded-3xl bg-white dark:bg-zinc-900 border border-zinc-200/80 dark:border-zinc-800 shadow-ios-sm">
+          <div className="p-4 card">
             <h3 className="text-sm font-bold text-zinc-900 dark:text-zinc-100 mb-3">
               Fitur Tambahan
             </h3>
@@ -790,7 +796,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       {activeSection === 'profile' && (
         <div className="space-y-3">
           {/* Theme Selector */}
-          <div className="p-4 rounded-3xl bg-white dark:bg-zinc-900 border border-zinc-200/80 dark:border-zinc-800 shadow-ios-sm">
+          <div className="p-4 card">
             <h3 className="text-sm font-bold text-zinc-900 dark:text-zinc-100 mb-2">
               Tema Tampilan
             </h3>
@@ -816,7 +822,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             </div>
           </div>
 
-          <div className="p-4 rounded-3xl bg-white dark:bg-zinc-900 border border-zinc-200/80 dark:border-zinc-800 shadow-ios-sm">
+          <div className="p-4 card">
             <h3 className="text-sm font-bold text-zinc-900 dark:text-zinc-100 mb-3">
               Ubah Profil Pengguna
             </h3>
@@ -860,7 +866,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       {/* SECTION 6: KEAMANAN & PIN */}
       {activeSection === 'security' && (
         <div className="space-y-3">
-          <div className="p-4 rounded-3xl bg-white dark:bg-zinc-900 border border-zinc-200/80 dark:border-zinc-800 shadow-ios-sm">
+          <div className="p-4 card">
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
                 <Shield className="w-5 h-5 text-emerald-500" />

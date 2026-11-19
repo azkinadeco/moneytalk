@@ -67,17 +67,7 @@ export const SimulatorView: React.FC = () => {
   const netMonthlyIncome = grossMonthly - monthlyTax;
 
   return (
-    <div className="space-y-4 pb-28">
-      {/* Title */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-xl font-extrabold text-zinc-900 dark:text-zinc-100 tracking-tight">
-            Simulasi Finansial
-          </h2>
-          <p className="text-xs text-zinc-400">Kalkulator bunga majemuk & pajak PPh 21</p>
-        </div>
-      </div>
-
+    <div className="space-y-4">
       {/* Segmented Selector */}
       <div className="grid grid-cols-2 p-1 rounded-2xl bg-zinc-100 dark:bg-zinc-800 text-xs font-bold gap-1">
         <button
@@ -105,7 +95,7 @@ export const SimulatorView: React.FC = () => {
       {/* COMPOUND INTEREST CALCULATOR */}
       {activeTab === 'compound' && (
         <div className="space-y-4">
-          <div className="p-5 rounded-3xl bg-white dark:bg-zinc-900 border border-zinc-200/80 dark:border-zinc-800 shadow-ios-sm space-y-3.5">
+          <div className="p-5 card space-y-3.5">
             <h4 className="text-xs font-bold text-zinc-900 dark:text-zinc-100 uppercase tracking-wider">
               Parameter Investasi
             </h4>
@@ -193,7 +183,7 @@ export const SimulatorView: React.FC = () => {
       {/* TAX PPH 21 CALCULATOR */}
       {activeTab === 'tax' && (
         <div className="space-y-4">
-          <div className="p-5 rounded-3xl bg-white dark:bg-zinc-900 border border-zinc-200/80 dark:border-zinc-800 shadow-ios-sm space-y-3.5">
+          <div className="p-5 card space-y-3.5">
             <h4 className="text-xs font-bold text-zinc-900 dark:text-zinc-100 uppercase tracking-wider">
               Data Penghasilan & PTKP
             </h4>
@@ -229,7 +219,7 @@ export const SimulatorView: React.FC = () => {
           </div>
 
           {/* Tax Result Card */}
-          <div className="p-5 rounded-3xl bg-white dark:bg-zinc-900 border border-zinc-200/80 dark:border-zinc-800 shadow-ios-sm space-y-3">
+          <div className="p-5 card space-y-3">
             <h4 className="text-xs font-bold text-zinc-900 dark:text-zinc-100 uppercase tracking-wider">
               Estimasi Potongan Pajak UU HPP
             </h4>

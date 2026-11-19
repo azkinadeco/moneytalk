@@ -160,140 +160,110 @@ export const WalletsView: React.FC<WalletsViewProps> = ({ onOpenTransferModal, o
   };
 
   return (
-    <div className="space-y-4 pb-28 animate-in fade-in duration-200">
-      {/* Total Balance Card */}
-      <div className="p-5 rounded-3xl bg-zinc-900 text-white shadow-ios-elevated border border-white/10 relative overflow-hidden">
-        <div className="flex items-center justify-between mb-2">
-          <span className="text-xs font-semibold text-zinc-400">Total Aset Kas</span>
+    <div className="space-y-5">
+      {/* Total + distribution */}
+      <section className="card p-4">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-xs text-muted">Total saldo {wallets.length} akun</p>
+            <p className="text-[26px] leading-tight font-extrabold num text-zinc-900 dark:text-zinc-50 mt-0.5">
+              {hideBalance ? 'Rp ••••••' : formatIDR(totalBalance)}
+            </p>
+          </div>
           <button
             onClick={() => {
               sounds.playPop();
               onOpenTransferModal();
             }}
-            className="min-h-[36px] flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-white/10 hover:bg-white/15 active:scale-95 transition-all"
+            className="btn-secondary btn-sm shrink-0"
           >
-            <ArrowLeftRight className="w-3.5 h-3.5 text-emerald-400" />
-            <span>Transfer</span>
+            <ArrowLeftRight className="w-3.5 h-3.5" />
+            Transfer
           </button>
         </div>
 
-        <h2 className="text-3xl font-extrabold tracking-tight tabular-nums">
-          {hideBalance ? 'Rp ••••••••' : formatIDR(totalBalance)}
-        </h2>
-
-        {/* Multi-segment Balance Distribution Bar */}
         {totalBalance > 0 && (
-          <div className="mt-4 pt-3 border-t border-white/10">
-            <div className="w-full h-2 rounded-full bg-white/10 flex overflow-hidden gap-0.5">
-              {wallets.map(w => {
-                const b = Math.max(0, getWalletBalance(w.id));
-                const pct = totalBalance > 0 ? (b / totalBalance) * 100 : 0;
-                if (pct <= 0) return null;
-                return (
-                  <div
-                    key={w.id}
-                    className="h-full transition-all duration-500 first:rounded-l-full last:rounded-r-full"
-                    style={{ width: `${pct}%`, backgroundColor: w.color }}
-                    title={`${w.name}: ${Math.round(pct)}%`}
-                  />
-                );
-              })}
-            </div>
-            <div className="flex flex-wrap items-center gap-3 mt-2">
-              {wallets.map(w => {
-                const b = Math.max(0, getWalletBalance(w.id));
-                const pct = totalBalance > 0 ? Math.round((b / totalBalance) * 100) : 0;
-                return (
-                  <div key={w.id} className="flex items-center gap-1.5 text-[10px] text-zinc-400">
-                    <span className="w-2 h-2 rounded-full" style={{ backgroundColor: w.color }} />
-                    <span>
-                      {w.name} {pct}%
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
+          <div className="flex h-2 mt-4 rounded-full overflow-hidden gap-0.5 bg-zinc-100 dark:bg-zinc-800">
+            {wallets.map(w => {
+              const pct = (Math.max(0, getWalletBalance(w.id)) / totalBalance) * 100;
+              if (pct <= 0) return null;
+              return (
+                <div
+                  key={w.id}
+                  className="h-full"
+                  style={{ width: `${pct}%`, backgroundColor: w.color }}
+                  title={`${w.name}: ${Math.round(pct)}%`}
+                />
+              );
+            })}
           </div>
         )}
-      </div>
+      </section>
 
-      {/* Header & Add Button */}
-      <div className="flex items-center justify-between px-1">
-        <div>
-          <h3 className="text-sm font-bold text-zinc-900 dark:text-zinc-100">
-            Akun & Dompet
-          </h3>
-          <p className="text-[10px] text-zinc-400">
-            Ketuk kartu dompet untuk riwayat, edit, atau sesuaikan saldo
-          </p>
+      {/* Wallet list */}
+      <section>
+        <div className="flex items-center justify-between px-1 mb-2">
+          <h3 className="section-title">Akun & dompet</h3>
+          <button
+            onClick={() => {
+              sounds.playPop();
+              setShowAddWalletModal(true);
+            }}
+            className="link min-h-[32px]"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            Tambah
+          </button>
         </div>
-        <button
-          onClick={() => {
-            sounds.playPop();
-            setShowAddWalletModal(true);
-          }}
-          className="min-h-[36px] flex items-center gap-1 text-xs font-bold text-emerald-500 bg-emerald-50 dark:bg-emerald-950/40 px-3 py-1.5 rounded-xl hover:bg-emerald-100 transition-colors active:scale-95"
-        >
-          <Plus className="w-3.5 h-3.5 stroke-[3]" />
-          <span>Tambah</span>
-        </button>
-      </div>
 
-      {/* Wallet Cards Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-        {wallets.map(w => {
-          const balance = getWalletBalance(w.id);
-
-          return (
-            <div
-              key={w.id}
-              onClick={() => handleOpenWalletSheet(w)}
-              className="cursor-pointer p-4 rounded-3xl bg-white dark:bg-zinc-900 border border-zinc-200/80 dark:border-zinc-800 shadow-ios-sm flex flex-col justify-between group hover:border-emerald-500/40 active:scale-[0.99] transition-all"
-            >
-              <div className="flex items-start justify-between">
-                <div className="flex items-center gap-2.5">
-                  <div
-                    className="w-10 h-10 rounded-2xl flex items-center justify-center text-white shadow-xs shrink-0"
-                    style={{ backgroundColor: w.color }}
-                  >
-                    <DynamicIcon name={w.icon} className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <h4 className="text-sm font-bold text-zinc-900 dark:text-zinc-100 leading-tight group-hover:text-emerald-500 transition-colors">
-                      {w.name}
-                    </h4>
-                    <span className="text-[10px] text-zinc-400 font-medium">
-                      {w.accountNumber || (w.type === 'cash' ? 'Uang Tunai' : 'Dompet Digital')}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-1">
-                  <span className="text-[10px] font-bold text-zinc-400 group-hover:text-emerald-500 px-2 py-0.5 rounded-lg bg-zinc-100 dark:bg-zinc-800">
-                    Kelola
-                  </span>
-                </div>
-              </div>
-
-              <div className="mt-3 pt-2.5 border-t border-zinc-100 dark:border-zinc-800/80 flex items-center justify-between">
-                <span className="text-base font-extrabold text-zinc-900 dark:text-zinc-100 tabular-nums">
-                  {hideBalance ? '••••••' : formatIDR(balance)}
+        <div className="card-list">
+          {wallets.map(w => {
+            const balance = getWalletBalance(w.id);
+            const pct = totalBalance > 0 ? Math.round((Math.max(0, balance) / totalBalance) * 100) : 0;
+            return (
+              <button
+                key={w.id}
+                onClick={() => handleOpenWalletSheet(w)}
+                className="w-full px-4 py-3 flex items-center gap-3 text-left hover:bg-zinc-50 dark:hover:bg-zinc-800/40 transition-colors"
+              >
+                <span className="icon-tile text-white" style={{ backgroundColor: w.color }}>
+                  <DynamicIcon name={w.icon} className="w-5 h-5" />
                 </span>
-                <ChevronRight className="w-4 h-4 text-zinc-300 dark:text-zinc-600 group-hover:text-emerald-500 transition-colors" />
-              </div>
-            </div>
-          );
-        })}
-      </div>
+                <span className="flex-1 min-w-0">
+                  <span className="block text-sm font-semibold text-zinc-900 dark:text-zinc-100 truncate">
+                    {w.name}
+                  </span>
+                  <span className="block text-xs text-zinc-400 truncate">
+                    {w.accountNumber ||
+                      (w.type === 'cash'
+                        ? 'Tunai'
+                        : w.type === 'bank'
+                        ? 'Bank'
+                        : w.type === 'investment'
+                        ? 'Investasi'
+                        : 'E-wallet')}{' '}
+                    · {pct}%
+                  </span>
+                </span>
+                <span className={`text-sm font-bold num shrink-0 ${balance < 0 ? 'text-rose-500' : 'text-zinc-900 dark:text-zinc-100'}`}>
+                  {hideBalance ? '••••' : formatIDR(balance)}
+                </span>
+                <ChevronRight className="w-4 h-4 text-zinc-300 dark:text-zinc-600 shrink-0" />
+              </button>
+            );
+          })}
+        </div>
+        <p className="text-[11px] text-zinc-400 px-1 mt-2">
+          Ketuk akun untuk lihat mutasi, edit, atau sesuaikan saldo.
+        </p>
+      </section>
 
       {/* Clean Navigation Hub */}
       {onNavigate && (
         <div className="pt-2 space-y-2">
-          <h3 className="text-sm font-bold text-zinc-900 dark:text-zinc-100 px-1">
-            Komitmen Keuangan
-          </h3>
+          <h3 className="section-title px-1">Komitmen keuangan</h3>
 
-          <div className="bg-white dark:bg-zinc-900 rounded-3xl border border-zinc-200/80 dark:border-zinc-800 shadow-ios-sm overflow-hidden divide-y divide-zinc-100 dark:divide-zinc-800/60">
+          <div className="card overflow-hidden divide-y divide-zinc-100 dark:divide-zinc-800/60">
             <button
               onClick={() => onNavigate('goals')}
               className="w-full p-3.5 flex items-center justify-between hover:bg-zinc-50 dark:hover:bg-zinc-800/40 active:bg-zinc-100 transition-colors text-left"

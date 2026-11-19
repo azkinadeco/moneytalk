@@ -211,7 +211,7 @@ export const AiAdvisorView: React.FC = () => {
           value={input}
           onChange={e => setInput(e.target.value)}
           onKeyDown={e => e.key === 'Enter' && handleSend()}
-          className="flex-1 min-h-[48px] px-4 py-3 rounded-2xl bg-white dark:bg-zinc-900 border border-zinc-200/80 dark:border-zinc-800 text-[16px] sm:text-xs text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 shadow-ios-sm"
+          className="flex-1 min-h-[48px] px-4 py-3 card text-[16px] sm:text-xs text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 shadow-ios-sm"
         />
         <button
           onClick={() => handleSend()}

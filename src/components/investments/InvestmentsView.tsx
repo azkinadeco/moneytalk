@@ -47,26 +47,23 @@ export const InvestmentsView: React.FC = () => {
   };
 
   return (
-    <div className="space-y-4 pb-24">
+    <div className="space-y-4">
       {/* Title */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-xl font-extrabold text-zinc-900 dark:text-zinc-100 tracking-tight">
-            Portofolio Aset
-          </h2>
-          <p className="text-xs text-zinc-400">Total kekayaan bersih & instrumen investasi</p>
+          <p className="text-xs text-muted">Total kekayaan bersih & instrumen investasi</p>
         </div>
         <button
           onClick={() => setShowAddModal(true)}
-          className="min-h-[36px] px-3 py-1.5 rounded-xl bg-emerald-500 text-white font-bold text-xs flex items-center gap-1 active:scale-95 shadow-sm"
+          className="btn-primary btn-sm"
         >
           <Plus className="w-3.5 h-3.5" />
-          + Aset
+          Aset
         </button>
       </div>
 
       {/* Total Net Worth Card */}
-      <div className="p-5 rounded-3xl bg-zinc-900 dark:bg-zinc-850 text-white shadow-ios-card border border-zinc-800 relative overflow-hidden">
+      <div className="p-5 rounded-3xl bg-zinc-900 dark:bg-zinc-900 text-white border border-zinc-800 relative overflow-hidden">
         <span className="text-xs text-zinc-400 font-medium uppercase tracking-wider">
           Total Kekayaan Bersih (Net Worth)
         </span>
@@ -91,7 +88,7 @@ export const InvestmentsView: React.FC = () => {
       </div>
 
       {/* Investment Gain Summary */}
-      <div className="p-4 rounded-3xl bg-white dark:bg-zinc-900 border border-zinc-200/80 dark:border-zinc-800 shadow-ios-sm flex items-center justify-between">
+      <div className="p-4 card flex items-center justify-between">
         <div>
           <span className="text-[10px] uppercase font-bold text-zinc-400">Total Keuntungan Investasi (Gain)</span>
           <p className="text-lg font-black text-emerald-500 flex items-center gap-1 tabular-nums">
@@ -111,7 +108,7 @@ export const InvestmentsView: React.FC = () => {
           return (
             <div
               key={asset.id}
-              className="p-4 rounded-3xl bg-white dark:bg-zinc-900 border border-zinc-200/80 dark:border-zinc-800 shadow-ios-sm space-y-2.5"
+              className="p-4 card space-y-2.5"
             >
               <div className="flex items-start justify-between">
                 <div>

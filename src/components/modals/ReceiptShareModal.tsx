@@ -11,7 +11,7 @@ interface ReceiptShareModalProps {
 }
 
 export const ReceiptShareModal: React.FC<ReceiptShareModalProps> = ({ transaction, onClose }) => {
-  const { categories, wallets } = useFinance();
+  const { categories, wallets, showToast } = useFinance();
 
   if (!transaction) return null;
 
@@ -29,7 +29,7 @@ export const ReceiptShareModal: React.FC<ReceiptShareModalProps> = ({ transactio
         text: `Bukti Transaksi Money Talk: ${formatIDR(transaction.amount)} pada ${transaction.date}.`,
       }).catch(() => {});
     } else {
-      alert('Tangkapan layar struk ini siap dibagikan ke teman!');
+      showToast('Ambil tangkapan layar untuk membagikan struk', 'info');
     }
   };
 
@@ -37,7 +37,7 @@ export const ReceiptShareModal: React.FC<ReceiptShareModalProps> = ({ transactio
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-in fade-in duration-200">
       <div className="fixed inset-0" onClick={onClose} />
 
-      <div className="relative w-full max-w-sm bg-white dark:bg-zinc-900 rounded-[32px] p-6 shadow-ios-elevated z-10 border border-zinc-200 dark:border-zinc-800 text-center">
+      <div className="relative w-full max-w-sm bg-white dark:bg-zinc-900 rounded-3xl p-6 shadow-ios-elevated z-10 border border-zinc-200 dark:border-zinc-800 text-center">
         <button
           onClick={onClose}
           className="absolute top-4 right-4 p-1 rounded-full bg-zinc-100 dark:bg-zinc-800 text-zinc-500 hover:text-zinc-700"

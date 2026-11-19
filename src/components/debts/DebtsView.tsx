@@ -6,7 +6,7 @@ import confetti from 'canvas-confetti';
 import { HandCoins, Plus, CheckCircle2, Clock, Trash2, ArrowUpRight, ArrowDownLeft } from 'lucide-react';
 
 export const DebtsView: React.FC = () => {
-  const { debts, addDebt, payDebt, deleteDebt, hideBalance, wallets } = useFinance();
+  const { debts, addDebt, payDebt, deleteDebt, hideBalance, wallets, getWalletBalance } = useFinance();
   const [activeTab, setActiveTab] = useState<'receivable' | 'payable'>('receivable');
   const [showAddModal, setShowAddModal] = useState(false);
   const [activeDebtForPay, setActiveDebtForPay] = useState<DebtItem | null>(null);
@@ -71,7 +71,7 @@ export const DebtsView: React.FC = () => {
   };
 
   return (
-    <div className="space-y-4 pb-24">
+    <div className="space-y-4">
       {/* Summary Cards */}
       <div className="grid grid-cols-2 gap-2.5">
         <button
@@ -126,7 +126,7 @@ export const DebtsView: React.FC = () => {
       {/* List */}
       <div className="space-y-3">
         {filteredDebts.length === 0 ? (
-          <div className="p-8 text-center rounded-3xl bg-white dark:bg-zinc-900 border border-zinc-200/80 dark:border-zinc-800">
+          <div className="p-8 text-center card">
             <p className="text-xs text-zinc-400">
               Tidak ada catatan {activeTab === 'receivable' ? 'piutang' : 'hutang'}
             </p>
@@ -139,7 +139,7 @@ export const DebtsView: React.FC = () => {
             return (
               <div
                 key={debt.id}
-                className="p-4 rounded-3xl bg-white dark:bg-zinc-900 border border-zinc-200/80 dark:border-zinc-800 shadow-ios-sm space-y-3"
+                className="p-4 card space-y-3"
               >
                 <div className="flex items-start justify-between">
                   <div>
@@ -269,7 +269,7 @@ export const DebtsView: React.FC = () => {
                 >
                   {wallets.map(w => (
                     <option key={w.id} value={w.id}>
-                      {w.icon} {w.name}
+                      {w.name} · {formatIDR(getWalletBalance(w.id), true)}
                     </option>
                   ))}
                 </select>

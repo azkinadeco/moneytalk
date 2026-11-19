@@ -11,20 +11,29 @@ interface PersonaModalProps {
 
 export const PersonaModal: React.FC<PersonaModalProps> = ({ isOpen, onClose }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const { importJSON, showToast } = useFinance();
 
   if (!isOpen) return null;
 
   const handleApplyPersona = (persona: PersonaData) => {
     if (confirm(`Terapkan preset persona "${persona.name}"? Data saat ini akan digantikan dengan data persona ini.`)) {
-      localStorage.setItem('moneytalk_cat_v2', JSON.stringify(persona.categories));
-      localStorage.setItem('moneytalk_wal_v2', JSON.stringify(persona.wallets));
-      localStorage.setItem('moneytalk_bud_v2', JSON.stringify(persona.budgets));
-      localStorage.setItem('moneytalk_goal_v2', JSON.stringify(persona.goals));
-      localStorage.setItem('moneytalk_rec_v2', JSON.stringify(persona.recurring));
-      localStorage.setItem('moneytalk_tx_v2', JSON.stringify(persona.transactions));
-
-      confetti({ particleCount: 50, spread: 60, origin: { y: 0.8 } });
-      window.location.reload();
+      const ok = importJSON(
+        JSON.stringify({
+          categories: persona.categories,
+          wallets: persona.wallets,
+          budgets: persona.budgets,
+          goals: persona.goals,
+          recurring: persona.recurring,
+          transactions: persona.transactions,
+        })
+      );
+      if (ok) {
+        confetti({ particleCount: 50, spread: 60, origin: { y: 0.8 } });
+        showToast(`Persona "${persona.name}" diterapkan`);
+        onClose();
+      } else {
+        showToast('Gagal menerapkan persona', 'error');
+      }
     }
   };
 
@@ -34,26 +43,23 @@ export const PersonaModal: React.FC<PersonaModalProps> = ({ isOpen, onClose }) =
 
     const reader = new FileReader();
     reader.onload = event => {
+      const content = event.target?.result as string;
+      let valid = false;
       try {
-        const json = JSON.parse(event.target?.result as string);
-        if (json.transactions) {
-          localStorage.setItem('moneytalk_tx_v2', JSON.stringify(json.transactions));
-          if (json.categories) localStorage.setItem('moneytalk_cat_v2', JSON.stringify(json.categories));
-          if (json.wallets) localStorage.setItem('moneytalk_wal_v2', JSON.stringify(json.wallets));
-          if (json.budgets) localStorage.setItem('moneytalk_bud_v2', JSON.stringify(json.budgets));
-          if (json.goals) localStorage.setItem('moneytalk_goal_v2', JSON.stringify(json.goals));
-
-          confetti({ particleCount: 50, spread: 60 });
-          alert('Data backup berhasil dipulihkan!');
-          window.location.reload();
-        } else {
-          alert('Format berkas JSON tidak valid.');
-        }
-      } catch (err) {
-        alert('Gagal membaca berkas JSON.');
+        valid = Array.isArray(JSON.parse(content)?.transactions);
+      } catch {
+        valid = false;
+      }
+      if (valid && importJSON(content)) {
+        confetti({ particleCount: 50, spread: 60 });
+        showToast('Data backup berhasil dipulihkan');
+        onClose();
+      } else {
+        showToast('File backup tidak valid', 'error');
       }
     };
     reader.readAsText(file);
+    e.target.value = '';
   };
 
   return (

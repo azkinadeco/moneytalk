@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useFinance } from '../../context/FinanceContext';
-import { formatIDR } from '../../utils/format';
+import { formatIDR, getTodayDateString } from '../../utils/format';
 import { SplitBillMember } from '../../types';
 import confetti from 'canvas-confetti';
 import { Users, Plus, Trash2, Share2, Check, ArrowRight, Copy } from 'lucide-react';
@@ -108,7 +108,7 @@ export const SplitBillView: React.FC = () => {
       amount: myShare,
       categoryId: foodCat?.id || 'cat-food',
       walletId,
-      date: new Date().toISOString().split('T')[0],
+      date: getTodayDateString(),
       note: `Patungan: ${billTitle} (Porsi Saya)`,
     });
 
@@ -138,19 +138,9 @@ export const SplitBillView: React.FC = () => {
   };
 
   return (
-    <div className="space-y-4 pb-24">
-      {/* Title */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-xl font-extrabold text-zinc-900 dark:text-zinc-100 tracking-tight">
-            Split Bill
-          </h2>
-          <p className="text-xs text-zinc-400">Kalkulator patungan nongkrong</p>
-        </div>
-      </div>
-
+    <div className="space-y-4">
       {/* Bill Input Card */}
-      <div className="p-5 rounded-3xl bg-white dark:bg-zinc-900 border border-zinc-200/80 dark:border-zinc-800 shadow-ios-sm space-y-3.5">
+      <div className="p-5 card space-y-3.5">
         <div>
           <label className="text-[11px] font-semibold text-zinc-400 block mb-1">
             Nama Acara / Resto
@@ -218,7 +208,7 @@ export const SplitBillView: React.FC = () => {
       </div>
 
       {/* Members List */}
-      <div className="p-5 rounded-3xl bg-white dark:bg-zinc-900 border border-zinc-200/80 dark:border-zinc-800 shadow-ios-sm space-y-3">
+      <div className="p-5 card space-y-3">
         <h4 className="text-xs font-bold text-zinc-900 dark:text-zinc-100 uppercase tracking-wider">
           Daftar Teman ({members.length})
         </h4>

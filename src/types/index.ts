@@ -141,10 +141,16 @@ export interface AchievementBadge {
   unlockedAt?: string;
 }
 
+export interface ToastAction {
+  label: string;
+  onClick: () => void;
+}
+
 export interface ToastNotification {
   id: string;
   message: string;
   type: 'success' | 'info' | 'error';
+  action?: ToastAction;
 }
 
 export type AppTheme = 'dark' | 'light' | 'oled' | 'indigo' | 'emerald';

@@ -23,7 +23,6 @@ import { PinLockModal } from './components/security/PinLockModal';
 import { CurrencyConverterModal } from './components/modals/CurrencyConverterModal';
 import { BadgesModal } from './components/modals/BadgesModal';
 import { IosInstallBanner } from './components/common/IosInstallBanner';
-import { ChevronLeft } from 'lucide-react';
 
 // F-08: Code-split secondary laboratory views so core startup bundle stays light
 const SplitBillView = lazy(() =>
@@ -56,10 +55,43 @@ const ReimbursementView = lazy(() =>
   }))
 );
 
-const MainAppContent: React.FC = () => {
-  const { isAppLocked, unlockApp, appPin, toast } = useFinance();
+type AppTab = TabType | 'recurring';
 
-  const [currentTab, setCurrentTab] = useState<TabType | 'recurring'>('dashboard');
+const MAIN_TABS: AppTab[] = ['dashboard', 'transactions', 'analytics', 'wallets'];
+
+const PAGE_TITLES: Record<AppTab, string> = {
+  dashboard: 'Beranda',
+  transactions: 'Riwayat',
+  analytics: 'Laporan',
+  wallets: 'Dompet',
+  goals: 'Anggaran',
+  debts: 'Hutang & Piutang',
+  recurring: 'Tagihan Rutin',
+  calendar: 'Kalender',
+  splitbill: 'Split Bill',
+  shopping: 'Daftar Belanja',
+  investments: 'Investasi',
+  advisor: 'AI Advisor',
+  settings: 'Pengaturan',
+  reimburse: 'Klaim Kantor',
+  simulator: 'Simulasi',
+};
+
+const MONTH_SCOPED: AppTab[] = ['dashboard', 'transactions', 'goals'];
+
+const greeting = () => {
+  const h = new Date().getHours();
+  if (h < 11) return 'Selamat pagi';
+  if (h < 15) return 'Selamat siang';
+  if (h < 18) return 'Selamat sore';
+  return 'Selamat malam';
+};
+
+const MainAppContent: React.FC = () => {
+  const { isAppLocked, unlockApp, appPin, toast, dismissToast, userProfile } = useFinance();
+
+  const [history, setHistory] = useState<AppTab[]>(['dashboard']);
+  const currentTab = history[history.length - 1];
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [modalType, setModalType] = useState<TransactionType>('expense');
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
@@ -68,6 +100,22 @@ const MainAppContent: React.FC = () => {
   const [isPersonaOpen, setIsPersonaOpen] = useState(false);
   const [isCurrencyConverterOpen, setIsCurrencyConverterOpen] = useState(false);
   const [isBadgesOpen, setIsBadgesOpen] = useState(false);
+
+  const isSubPage = !MAIN_TABS.includes(currentTab);
+
+  // Main tabs reset the stack; sub pages push so "back" returns to where you came from
+  const navigate = (tab: AppTab) => {
+    setHistory(prev => {
+      if (MAIN_TABS.includes(tab)) return [tab];
+      if (prev[prev.length - 1] === tab) return prev;
+      return [...prev, tab];
+    });
+  };
+  const goBack = () => setHistory(prev => (prev.length > 1 ? prev.slice(0, -1) : ['dashboard']));
+
+  useEffect(() => {
+    window.scrollTo({ top: 0 });
+  }, [currentTab]);
 
   // A-07: Global Escape key listener for accessible modal dismissal
   useEffect(() => {
@@ -86,6 +134,11 @@ const MainAppContent: React.FC = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
+  // Lock body scroll while the transaction sheet is open
+  useEffect(() => {
+    document.body.style.overflow = isAddModalOpen ? 'hidden' : '';
+  }, [isAddModalOpen]);
+
   const handleOpenAddModal = (type: TransactionType = 'expense') => {
     setEditingTransaction(null);
     setModalType(type);
@@ -103,74 +156,71 @@ const MainAppContent: React.FC = () => {
     setEditingTransaction(null);
   };
 
-  const isSubPage =
-    currentTab === 'goals' ||
-    currentTab === 'debts' ||
-    currentTab === 'recurring' ||
-    currentTab === 'calendar' ||
-    currentTab === 'splitbill' ||
-    currentTab === 'shopping' ||
-    currentTab === 'investments' ||
-    currentTab === 'advisor' ||
-    currentTab === 'settings' ||
-    currentTab === 'reimburse' ||
-    currentTab === 'simulator';
+  const firstName = (userProfile.name || '').split(' ')[0];
 
   return (
-    <div className="min-h-[100dvh] w-full overflow-x-hidden bg-zinc-100 dark:bg-[#09090b] text-zinc-900 dark:text-zinc-100 flex flex-col justify-between selection:bg-emerald-500 selection:text-white">
-      {/* Mobile Shell Container */}
-      <div className="w-full max-w-md mx-auto min-h-[100dvh] overflow-x-hidden flex flex-col bg-zinc-50 dark:bg-zinc-950 shadow-2xl relative">
-        {/* Floating iOS Native Toast Pill (A-06) */}
+    <div className="min-h-[100dvh] w-full overflow-x-hidden text-zinc-900 dark:text-zinc-100 selection:bg-emerald-500 selection:text-white">
+      <div className="w-full max-w-md mx-auto min-h-[100dvh] flex flex-col relative">
+        {/* Toast */}
         {toast && (
-          <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[100] max-w-[90%] pointer-events-none animate-in fade-in slide-in-from-top-3 duration-200">
+          <div
+            key={toast.id}
+            className="fixed top-3 inset-x-0 z-[100] flex justify-center px-4 pointer-events-none pt-safe-top"
+          >
             <div
-              className={`flex items-center gap-2 px-4 py-2.5 rounded-full shadow-xl backdrop-blur-xl border text-xs font-semibold ${
+              role="status"
+              className={`pointer-events-auto max-w-sm w-full flex items-center gap-3 pl-4 pr-2 py-2 min-h-[48px] rounded-2xl shadow-ios-elevated text-sm font-medium animate-pop-in ${
                 toast.type === 'error'
-                  ? 'bg-rose-500/90 text-white border-rose-400/30'
-                  : toast.type === 'info'
-                  ? 'bg-blue-500/90 text-white border-blue-400/30'
-                  : 'bg-zinc-900/90 dark:bg-zinc-800/90 text-emerald-400 border-zinc-700/50'
+                  ? 'bg-rose-600 text-white'
+                  : 'bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900'
               }`}
             >
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-              <span>{toast.message}</span>
+              <span
+                className={`w-2 h-2 rounded-full shrink-0 ${
+                  toast.type === 'error' ? 'bg-white' : toast.type === 'info' ? 'bg-sky-400' : 'bg-emerald-400'
+                }`}
+              />
+              <span className="flex-1 min-w-0">{toast.message}</span>
+              {toast.action ? (
+                <button
+                  onClick={() => {
+                    toast.action?.onClick();
+                    dismissToast();
+                  }}
+                  className="px-3 h-8 rounded-lg font-bold text-emerald-400 dark:text-emerald-600 hover:bg-white/10 dark:hover:bg-black/5"
+                >
+                  {toast.action.label}
+                </button>
+              ) : (
+                <span className="w-2" />
+              )}
             </div>
           </div>
         )}
 
-        {/* Clean Sticky iOS Header */}
         <Header
+          title={currentTab === 'dashboard' ? firstName || 'Money Talk' : PAGE_TITLES[currentTab]}
+          subtitle={currentTab === 'dashboard' ? greeting() : undefined}
+          onBack={isSubPage ? goBack : undefined}
+          showMonth={MONTH_SCOPED.includes(currentTab)}
+          showSettings={currentTab !== 'settings'}
           onOpenNotifications={() => setIsNotificationOpen(true)}
-          onNavigate={tab => setCurrentTab(tab)}
+          onOpenSettings={() => navigate('settings')}
         />
 
-        {/* Back navigation pill if in subview */}
-        {isSubPage && (
-          <div className="px-4 pt-2">
-            <button
-              onClick={() => setCurrentTab('dashboard')}
-              className="min-h-[36px] flex items-center gap-1 text-xs font-bold text-emerald-500 hover:text-emerald-400 active:scale-95 transition-all py-1"
-            >
-              <ChevronLeft className="w-4 h-4" />
-              Kembali ke Beranda
-            </button>
-          </div>
-        )}
-
-        {/* Content Area */}
-        <main className="flex-1 px-4 py-3 overflow-y-auto">
+        <main className="flex-1 px-4 pt-2 pb-28">
           {currentTab === 'dashboard' && (
-            <div className="space-y-3.5 pb-24">
+            <div className="space-y-4">
               <IosInstallBanner />
               <BalanceCard
-                onOpenAddModal={() => handleOpenAddModal('expense')}
-                onOpenTransferModal={() => handleOpenAddModal('transfer')}
+                onOpenAddModal={handleOpenAddModal}
+                onNavigate={navigate}
               />
-              <QuickShortcutsRow onNavigate={tab => setCurrentTab(tab)} />
-              <SmartReminderBanner onNavigate={tab => setCurrentTab(tab)} />
-              <QuickBudgetBar onGoToBudgets={() => setCurrentTab('goals')} />
+              <SmartReminderBanner onNavigate={navigate} />
+              <QuickShortcutsRow onNavigate={navigate} />
+              <QuickBudgetBar onGoToBudgets={() => navigate('goals')} />
               <RecentTransactions
-                onSeeAll={() => setCurrentTab('transactions')}
+                onSeeAll={() => navigate('transactions')}
                 onOpenAddModal={() => handleOpenAddModal('expense')}
                 onEditTransaction={handleEditTransaction}
               />
@@ -191,7 +241,7 @@ const MainAppContent: React.FC = () => {
           {currentTab === 'wallets' && (
             <WalletsView
               onOpenTransferModal={() => handleOpenAddModal('transfer')}
-              onNavigate={tab => setCurrentTab(tab)}
+              onNavigate={navigate}
             />
           )}
 
@@ -204,14 +254,14 @@ const MainAppContent: React.FC = () => {
               onOpenPersonas={() => setIsPersonaOpen(true)}
               onOpenCurrencyConverter={() => setIsCurrencyConverterOpen(true)}
               onOpenBadges={() => setIsBadgesOpen(true)}
-              onNavigate={tab => setCurrentTab(tab)}
+              onNavigate={navigate}
             />
           )}
 
           <Suspense
             fallback={
-              <div className="py-12 text-center text-xs text-zinc-400 animate-pulse">
-                Memuat modul...
+              <div className="py-16 flex justify-center">
+                <div className="w-6 h-6 rounded-full border-2 border-emerald-500 border-t-transparent animate-spin" />
               </div>
             }
           >
@@ -225,14 +275,12 @@ const MainAppContent: React.FC = () => {
           </Suspense>
         </main>
 
-        {/* Floating iOS Dock */}
         <BottomNavigation
-          currentTab={isSubPage ? 'dashboard' : (currentTab as TabType)}
-          onTabChange={tab => setCurrentTab(tab)}
+          currentTab={isSubPage ? (history.find(t => MAIN_TABS.includes(t)) as TabType) || 'dashboard' : (currentTab as TabType)}
+          onTabChange={navigate}
           onOpenAddModal={() => handleOpenAddModal('expense')}
         />
 
-        {/* Single Unified Transaction Modal (Create + Edit + Smart NLP + Voice) */}
         <AddTransactionModal
           isOpen={isAddModalOpen}
           onClose={handleCloseAddModal}
@@ -240,32 +288,15 @@ const MainAppContent: React.FC = () => {
           editingTransaction={editingTransaction}
         />
 
-        <FinancialReportModal
-          isOpen={isReportOpen}
-          onClose={() => setIsReportOpen(false)}
-        />
-
-        <NotificationModal
-          isOpen={isNotificationOpen}
-          onClose={() => setIsNotificationOpen(false)}
-        />
-
-        <PersonaModal
-          isOpen={isPersonaOpen}
-          onClose={() => setIsPersonaOpen(false)}
-        />
-
+        <FinancialReportModal isOpen={isReportOpen} onClose={() => setIsReportOpen(false)} />
+        <NotificationModal isOpen={isNotificationOpen} onClose={() => setIsNotificationOpen(false)} />
+        <PersonaModal isOpen={isPersonaOpen} onClose={() => setIsPersonaOpen(false)} />
         <CurrencyConverterModal
           isOpen={isCurrencyConverterOpen}
           onClose={() => setIsCurrencyConverterOpen(false)}
         />
+        <BadgesModal isOpen={isBadgesOpen} onClose={() => setIsBadgesOpen(false)} />
 
-        <BadgesModal
-          isOpen={isBadgesOpen}
-          onClose={() => setIsBadgesOpen(false)}
-        />
-
-        {/* Security PIN Lock Screen */}
         <PinLockModal isLocked={isAppLocked} onUnlock={unlockApp} correctPin={appPin} />
       </div>
     </div>

@@ -56,9 +56,9 @@ export const FinancialCalendarView: React.FC = () => {
   };
 
   return (
-    <div className="space-y-4 pb-24">
+    <div className="space-y-4">
       {/* Calendar Card */}
-      <div className="p-5 rounded-3xl bg-white dark:bg-zinc-900 border border-zinc-200/80 dark:border-zinc-800 shadow-ios-sm space-y-4">
+      <div className="p-5 card space-y-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <CalendarIcon className="w-4 h-4 text-emerald-500" />
@@ -151,7 +151,7 @@ export const FinancialCalendarView: React.FC = () => {
       </div>
 
       {/* Selected Day Details */}
-      <div className="p-5 rounded-3xl bg-white dark:bg-zinc-900 border border-zinc-200/80 dark:border-zinc-800 shadow-ios-sm space-y-3">
+      <div className="p-5 card space-y-3">
         <div className="flex items-center justify-between pb-2 border-b border-zinc-100 dark:border-zinc-800">
           <div>
             <span className="text-[10px] text-zinc-400 uppercase font-semibold">Aktivitas Tanggal</span>

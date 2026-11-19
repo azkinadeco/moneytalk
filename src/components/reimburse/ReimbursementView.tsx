@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
 import { useFinance } from '../../context/FinanceContext';
-import { formatIDR, formatDateIndonesian } from '../../utils/format';
+import { formatIDR, formatDateIndonesian, getTodayDateString } from '../../utils/format';
 import { FileCheck, Plus, CheckCircle2, Clock, AlertCircle, Trash2 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
 export const ReimbursementView: React.FC = () => {
-  const { transactions, updateReimburseStatus, addTransaction, wallets, categories, hideBalance } = useFinance();
+  const { transactions, updateReimburseStatus, addTransaction, wallets, categories, hideBalance, getWalletBalance } = useFinance();
   const [activeFilter, setActiveFilter] = useState<'all' | 'pending' | 'claimed' | 'received'>('all');
   const [showAddModal, setShowAddModal] = useState(false);
 
@@ -45,7 +45,7 @@ export const ReimbursementView: React.FC = () => {
       amount: parseInt(amount.replace(/\D/g, ''), 10) || 0,
       categoryId: transportCat?.id || 'cat-transport',
       walletId,
-      date: new Date().toISOString().split('T')[0],
+      date: getTodayDateString(),
       note: `[Klaim Kantor] ${title.trim()}`,
       isReimburse: true,
       reimburseStatus: 'pending',
@@ -69,26 +69,23 @@ export const ReimbursementView: React.FC = () => {
   };
 
   return (
-    <div className="space-y-4 pb-28">
+    <div className="space-y-4">
       {/* Title */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-xl font-extrabold text-zinc-900 dark:text-zinc-100 tracking-tight">
-            Klaim Kantor
-          </h2>
-          <p className="text-xs text-zinc-400">Tracking pengembalian dana kantor</p>
+          <p className="text-xs text-muted">Tracking pengembalian dana kantor</p>
         </div>
         <button
           onClick={() => setShowAddModal(true)}
-          className="min-h-[36px] flex items-center gap-1 text-xs font-semibold text-emerald-500 bg-emerald-50 dark:bg-emerald-950/40 px-3 py-1.5 rounded-xl hover:bg-emerald-100 transition-colors active:scale-95"
+          className="btn-primary btn-sm"
         >
           <Plus className="w-3.5 h-3.5" />
-          + Klaim
+          Klaim
         </button>
       </div>
 
       {/* Summary KPI Card */}
-      <div className="p-4 rounded-3xl bg-white dark:bg-zinc-900 border border-zinc-200/80 dark:border-zinc-800 shadow-ios-sm flex items-center justify-between">
+      <div className="p-4 card flex items-center justify-between">
         <div>
           <span className="text-[10px] text-zinc-400 uppercase font-semibold">Total Belum Cair</span>
           <p className="text-xl font-black text-blue-500 tabular-nums">
@@ -125,7 +122,7 @@ export const ReimbursementView: React.FC = () => {
       {/* Reimbursement List */}
       <div className="space-y-3">
         {filtered.length === 0 ? (
-          <div className="p-8 text-center rounded-3xl bg-white dark:bg-zinc-900 border border-zinc-200/80 dark:border-zinc-800">
+          <div className="p-8 text-center card">
             <p className="text-xs text-zinc-400">Tidak ada transaksi klaim di filter ini</p>
           </div>
         ) : (
@@ -135,7 +132,7 @@ export const ReimbursementView: React.FC = () => {
             return (
               <div
                 key={item.id}
-                className="p-4 rounded-3xl bg-white dark:bg-zinc-900 border border-zinc-200/80 dark:border-zinc-800 shadow-ios-sm space-y-3"
+                className="p-4 card space-y-3"
               >
                 <div className="flex items-start justify-between">
                   <div>
@@ -243,7 +240,7 @@ export const ReimbursementView: React.FC = () => {
                 >
                   {wallets.map(w => (
                     <option key={w.id} value={w.id}>
-                      {w.icon} {w.name}
+                      {w.name} · {formatIDR(getWalletBalance(w.id), true)}
                     </option>
                   ))}
                 </select>

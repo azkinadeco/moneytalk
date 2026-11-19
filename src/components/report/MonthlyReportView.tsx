@@ -164,7 +164,10 @@ export const MonthlyReportView: React.FC<MonthlyReportViewProps> = ({ onOpenRepo
 
     // Days elapsed or active
     const activeDaysCount = days.filter(d => d.expense > 0 || d.income > 0).length || 1;
-    const dailyAverage = Math.round(expenseData.total / daysInMonth);
+    const now = new Date();
+    const isCurrent = year === now.getFullYear() && month === now.getMonth() + 1;
+    const elapsed = isCurrent ? now.getDate() : daysInMonth;
+    const dailyAverage = Math.round(expenseData.total / Math.max(1, elapsed));
 
     return { days, maxVal, peakExpenseDay, dailyAverage, daysInMonth };
   }, [selectedMonth, monthTransactions, expenseData.total]);
@@ -330,7 +333,7 @@ Catat & kontrol keuangan harianmu dengan Money Talk!`;
                   strokeWidth={isHovered ? strokeWidth + 4 : strokeWidth}
                   strokeDasharray={strokeDasharray}
                   strokeDashoffset={strokeDashoffset}
-                  strokeLinecap="round"
+                  strokeLinecap="butt"
                   className="transition-all duration-300 cursor-pointer hover:opacity-90 active:scale-95"
                   onMouseEnter={() => {
                     setHoveredSliceIndex(idx);
@@ -358,7 +361,7 @@ Catat & kontrol keuangan harianmu dengan Money Talk!`;
                 ? items[hoveredSliceIndex].name
                 : 'Total'}
             </span>
-            <span className="text-sm font-extrabold text-zinc-900 dark:text-zinc-100 tracking-tight">
+            <span className="text-lg font-extrabold num text-zinc-900 dark:text-zinc-100">
               {hideBalance
                 ? '••••••'
                 : hoveredSliceIndex !== null && items[hoveredSliceIndex]
@@ -372,38 +375,6 @@ Catat & kontrol keuangan harianmu dengan Money Talk!`;
             )}
           </div>
         </div>
-
-        {/* Legend Preview List (Top 3 Items) */}
-        <div className="flex-1 space-y-1.5 w-full">
-          <div className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider mb-1">
-            Porsi Terbesar:
-          </div>
-          {items.slice(0, 4).map((item, idx) => (
-            <button
-              key={item.categoryId}
-              onClick={() => setSelectedCategoryModal(item.categoryId)}
-              className="w-full flex items-center justify-between p-1.5 px-2 rounded-xl hover:bg-zinc-100 dark:hover:bg-zinc-800/60 transition-colors text-left group"
-            >
-              <div className="flex items-center gap-2 min-w-0">
-                <span
-                  className="w-2.5 h-2.5 rounded-full shrink-0"
-                  style={{ backgroundColor: item.color }}
-                />
-                <span className="text-xs font-semibold text-zinc-800 dark:text-zinc-200 truncate">
-                  {item.name}
-                </span>
-              </div>
-              <div className="flex items-center gap-1.5 shrink-0 ml-2">
-                <span className="text-xs font-bold text-zinc-900 dark:text-zinc-100">
-                  {hideBalance ? '••••' : formatIDR(item.amount, true)}
-                </span>
-                <span className="text-[10px] font-bold text-zinc-400">
-                  {item.percentage}%
-                </span>
-              </div>
-            </button>
-          ))}
-        </div>
       </div>
     );
   };
@@ -411,276 +382,131 @@ Catat & kontrol keuangan harianmu dengan Money Talk!`;
   const netCashflow = incomeData.total - expenseData.total;
 
   return (
-    <div className="space-y-4 pb-28 animate-in fade-in duration-200">
-      {/* Top Bar: Title & Month Stepper Controls */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-xl font-extrabold text-zinc-900 dark:text-zinc-100 tracking-tight">
-            Laporan Keuangan
-          </h2>
-        </div>
-
-        {/* Share & PDF actions */}
-        <div className="flex items-center gap-1.5">
-          <button
-            onClick={() => setShowShareModal(true)}
-            aria-label="Bagikan Laporan"
-            className="w-11 h-11 rounded-2xl bg-white dark:bg-zinc-900 border border-zinc-200/80 dark:border-zinc-800 text-zinc-600 dark:text-zinc-400 hover:text-emerald-500 flex items-center justify-center active:scale-95 transition-all shadow-xs"
-            title="Bagikan Ringkasan Laporan"
-          >
-            <Share2 className="w-4 h-4" />
+    <div className="space-y-4">
+      {/* Month stepper + actions */}
+      <div className="flex items-center gap-2">
+        <div className="card flex-1 h-11 flex items-center justify-between px-1">
+          <button onClick={handlePrevMonth} aria-label="Bulan sebelumnya" className="icon-btn w-9 h-9">
+            <ChevronLeft className="w-4 h-4" />
           </button>
-
-          {onOpenReportPdf && (
-            <button
-              onClick={onOpenReportPdf}
-              aria-label="Cetak PDF"
-              className="w-11 h-11 rounded-2xl bg-emerald-500 text-white flex items-center justify-center active:scale-95 transition-all shadow-md shadow-emerald-500/20"
-              title="Cetak Laporan PDF"
-            >
-              <FileText className="w-4 h-4" />
-            </button>
-          )}
-        </div>
-      </div>
-
-      {/* Month Stepper Selector Card (Apple HIG Proportions) */}
-      <div className="p-2.5 rounded-2xl bg-white dark:bg-zinc-900 border border-zinc-200/80 dark:border-zinc-800 shadow-ios-sm flex items-center justify-between">
-        <button
-          onClick={handlePrevMonth}
-          className="min-h-[44px] px-3 rounded-xl hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-600 dark:text-zinc-400 active:scale-90 transition-all flex items-center gap-1 text-xs font-bold"
-        >
-          <ChevronLeft className="w-4 h-4" />
-          <span className="hidden sm:inline">Bulan Lalu</span>
-        </button>
-
-        <div className="flex items-center gap-2">
-          <Calendar className="w-4 h-4 text-emerald-500" />
-          <span className="text-sm font-extrabold text-zinc-900 dark:text-zinc-100">
+          <span className="text-sm font-semibold text-zinc-900 dark:text-zinc-100 capitalize">
             {getMonthName(selectedMonth)}
           </span>
+          <button onClick={handleNextMonth} aria-label="Bulan berikutnya" className="icon-btn w-9 h-9">
+            <ChevronRight className="w-4 h-4" />
+          </button>
         </div>
-
         <button
-          onClick={handleNextMonth}
-          className="min-h-[44px] px-3 rounded-xl hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-600 dark:text-zinc-400 active:scale-90 transition-all flex items-center gap-1 text-xs font-bold"
+          onClick={() => setShowShareModal(true)}
+          aria-label="Bagikan ringkasan"
+          className="card w-11 h-11 shrink-0 flex items-center justify-center text-zinc-500 active:scale-95"
         >
-          <span className="hidden sm:inline">Bulan Depan</span>
-          <ChevronRight className="w-4 h-4" />
+          <Share2 className="w-[18px] h-[18px]" />
         </button>
+        {onOpenReportPdf && (
+          <button
+            onClick={onOpenReportPdf}
+            aria-label="Laporan PDF"
+            className="w-11 h-11 shrink-0 rounded-2xl bg-emerald-500 text-white flex items-center justify-center active:scale-95"
+          >
+            <FileText className="w-[18px] h-[18px]" />
+          </button>
+        )}
       </div>
 
-      {/* Primary KPI Metrics */}
-      <div className="grid grid-cols-3 gap-2">
-        {/* Pemasukan Card */}
-        <div className="p-3 rounded-2xl bg-white dark:bg-zinc-900 border border-zinc-200/80 dark:border-zinc-800 shadow-ios-sm">
-          <div className="flex items-center justify-between mb-1">
-            <span className="text-[10px] font-bold text-zinc-400">Pemasukan</span>
-            <ArrowDownLeft className="w-3.5 h-3.5 text-emerald-500" />
+      {/* KPI summary */}
+      <div className="card grid grid-cols-3 divide-x divide-zinc-100 dark:divide-zinc-800">
+        {[
+          { l: 'Pemasukan', v: incomeData.total, cls: 'text-emerald-600 dark:text-emerald-400' },
+          { l: 'Pengeluaran', v: expenseData.total, cls: 'text-zinc-900 dark:text-zinc-100' },
+          {
+            l: netCashflow >= 0 ? 'Surplus' : 'Defisit',
+            v: netCashflow,
+            cls: netCashflow >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-500',
+          },
+        ].map(k => (
+          <div key={k.l} className="px-3 py-3 min-w-0">
+            <p className="text-[11px] text-muted">{k.l}</p>
+            <p className={`text-[15px] font-bold num truncate ${k.cls}`}>
+              {hideBalance ? '••••' : formatIDR(k.v, true)}
+            </p>
           </div>
-          <p className="text-sm sm:text-base font-extrabold text-emerald-600 dark:text-emerald-400 tracking-tight tabular-nums truncate">
-            {hideBalance ? '••••••' : formatIDR(incomeData.total, true)}
-          </p>
-        </div>
-
-        {/* Pengeluaran Card */}
-        <div className="p-3 rounded-2xl bg-white dark:bg-zinc-900 border border-zinc-200/80 dark:border-zinc-800 shadow-ios-sm">
-          <div className="flex items-center justify-between mb-1">
-            <span className="text-[10px] font-bold text-zinc-400">Pengeluaran</span>
-            <ArrowUpRight className="w-3.5 h-3.5 text-rose-500" />
-          </div>
-          <p className="text-sm sm:text-base font-extrabold text-rose-600 dark:text-rose-400 tracking-tight tabular-nums truncate">
-            {hideBalance ? '••••••' : formatIDR(expenseData.total, true)}
-          </p>
-        </div>
-
-        {/* Sisa Kas Bersih Card */}
-        <div className="p-3 rounded-2xl bg-white dark:bg-zinc-900 border border-zinc-200/80 dark:border-zinc-800 shadow-ios-sm">
-          <div className="flex items-center justify-between mb-1">
-            <span className="text-[10px] font-bold text-zinc-400">Sisa Kas</span>
-            <span
-              className={`text-[8px] font-bold px-1 rounded ${
-                netCashflow >= 0
-                  ? 'bg-emerald-500/10 text-emerald-500'
-                  : 'bg-rose-500/10 text-rose-500'
-              }`}
-            >
-              {netCashflow >= 0 ? 'Surplus' : 'Defisit'}
-            </span>
-          </div>
-          <p
-            className={`text-sm sm:text-base font-extrabold tracking-tight tabular-nums truncate ${
-              netCashflow >= 0
-                ? 'text-emerald-600 dark:text-emerald-400'
-                : 'text-rose-600 dark:text-rose-400'
-            }`}
-          >
-            {hideBalance ? '••••••' : formatIDR(netCashflow, true)}
-          </p>
-        </div>
+        ))}
       </div>
 
       {/* Tabbed Interactive Charts Section (Bagan Donut & Grafik) */}
-      <div className="p-4 rounded-3xl bg-white dark:bg-zinc-900 border border-zinc-200/80 dark:border-zinc-800 shadow-ios-sm space-y-4">
+      <div className="card p-4 space-y-4">
         {/* Segmented Chart Selector (44px min height) */}
-        <div className="grid grid-cols-3 p-1 rounded-2xl bg-zinc-100 dark:bg-zinc-800/80 gap-1">
-          <button
-            onClick={() => setActiveTab('expense')}
-            className={`min-h-[40px] text-xs font-bold rounded-xl transition-all ${
-              activeTab === 'expense'
-                ? 'bg-rose-500 text-white shadow-sm'
-                : 'text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200'
-            }`}
-          >
-            Bagan Pengeluaran
-          </button>
-
-          <button
-            onClick={() => setActiveTab('income')}
-            className={`min-h-[40px] text-xs font-bold rounded-xl transition-all ${
-              activeTab === 'income'
-                ? 'bg-emerald-500 text-white shadow-sm'
-                : 'text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200'
-            }`}
-          >
-            Bagan Pemasukan
-          </button>
-
-          <button
-            onClick={() => setActiveTab('trend')}
-            className={`min-h-[40px] text-xs font-bold rounded-xl transition-all ${
-              activeTab === 'trend'
-                ? 'bg-indigo-500 text-white shadow-sm'
-                : 'text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200'
-            }`}
-          >
-            Grafik Harian
-          </button>
+        <div className="segmented grid-cols-3">
+          {[
+            { k: 'expense', l: 'Pengeluaran' },
+            { k: 'income', l: 'Pemasukan' },
+            { k: 'trend', l: 'Harian' },
+          ].map(t => (
+            <button
+              key={t.k}
+              onClick={() => setActiveTab(t.k as typeof activeTab)}
+              className={`segment ${activeTab === t.k ? 'segment-active' : ''}`}
+            >
+              {t.l}
+            </button>
+          ))}
         </div>
 
-        {/* TAB 1: BAGAN DONAT PENGELUARAN */}
-        {activeTab === 'expense' && (
-          <div className="space-y-4">
-            {renderDonutChart(expenseData.items, expenseData.total)}
-
-            {/* Ranked Category Progress Bars */}
-            <div className="space-y-2 pt-2 border-t border-zinc-100 dark:border-zinc-800">
-              <div className="flex items-center justify-between text-xs font-bold text-zinc-500 uppercase tracking-wider">
-                <span>Rincian Kategori</span>
-                <span className="text-[10px] text-zinc-400 font-semibold">{expenseData.items.length} Kategori</span>
-              </div>
-
-              {expenseData.items.map(item => (
-                <button
-                  key={item.categoryId}
-                  onClick={() => setSelectedCategoryModal(item.categoryId)}
-                  className="w-full p-3 rounded-2xl bg-zinc-50 dark:bg-zinc-800/40 border border-zinc-200/80 dark:border-zinc-800/80 hover:border-rose-500/50 transition-all text-left active:scale-98 group"
-                >
-                  <div className="flex items-center justify-between mb-1.5">
-                    <div className="flex items-center gap-2.5">
-                      <div
-                        className="w-8 h-8 rounded-xl flex items-center justify-center text-white shadow-xs shrink-0"
-                        style={{ backgroundColor: item.color }}
+        {(activeTab === 'expense' || activeTab === 'income') &&
+          (() => {
+            const data = activeTab === 'expense' ? expenseData : incomeData;
+            const isExp = activeTab === 'expense';
+            if (data.items.length === 0) {
+              return (
+                <p className="py-10 text-center text-sm text-muted">
+                  Belum ada {isExp ? 'pengeluaran' : 'pemasukan'} di bulan ini.
+                </p>
+              );
+            }
+            return (
+              <div className="space-y-4">
+                {renderDonutChart(data.items, data.total)}
+                <div className="-mx-4 border-t border-zinc-100 dark:border-zinc-800 divide-y divide-zinc-100 dark:divide-zinc-800/70">
+                  {data.items.map(item => (
+                    <button
+                      key={item.categoryId}
+                      onClick={() => setSelectedCategoryModal(item.categoryId)}
+                      className="w-full px-4 py-3 flex items-center gap-3 text-left hover:bg-zinc-50 dark:hover:bg-zinc-800/40 transition-colors"
+                    >
+                      <span
+                        className="icon-tile w-9 h-9"
+                        style={{ backgroundColor: `${item.color}1f`, color: item.color }}
                       >
-                        <DynamicIcon name={item.icon} className="w-4 h-4" />
-                      </div>
-                      <div>
-                        <h4 className="text-xs font-bold text-zinc-900 dark:text-zinc-100 group-hover:text-rose-500 transition-colors">
-                          {item.name}
-                        </h4>
-                        <span className="text-[10px] text-zinc-400">
-                          {item.count}x belanja
-                        </span>
-                      </div>
-                    </div>
-
-                    <div className="text-right">
-                      <p className="text-xs font-extrabold text-zinc-900 dark:text-zinc-100 tabular-nums">
-                        {hideBalance ? '••••••' : formatIDR(item.amount)}
-                      </p>
-                      <span className="text-[10px] font-bold text-rose-500 tabular-nums">
-                        {item.percentage}%
+                        <DynamicIcon name={item.icon} className="w-[18px] h-[18px]" />
                       </span>
-                    </div>
-                  </div>
-
-                  {/* Horizontal Progress Bar */}
-                  <div className="w-full h-1.5 rounded-full bg-zinc-200 dark:bg-zinc-700/60 overflow-hidden">
-                    <div
-                      className="h-full rounded-full transition-all duration-500"
-                      style={{
-                        width: `${item.percentage}%`,
-                        backgroundColor: item.color,
-                      }}
-                    />
-                  </div>
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* TAB 2: BAGAN DONAT PEMASUKAN */}
-        {activeTab === 'income' && (
-          <div className="space-y-4">
-            {renderDonutChart(incomeData.items, incomeData.total)}
-
-            {/* Ranked Income Progress Bars */}
-            <div className="space-y-2 pt-2 border-t border-zinc-100 dark:border-zinc-800">
-              <div className="flex items-center justify-between text-xs font-bold text-zinc-500 uppercase tracking-wider">
-                <span>Sumber Pendapatan</span>
-                <span className="text-[10px] text-zinc-400 font-semibold">{incomeData.items.length} Sumber</span>
+                      <span className="flex-1 min-w-0">
+                        <span className="flex items-center justify-between gap-2">
+                          <span className="text-sm font-semibold text-zinc-900 dark:text-zinc-100 truncate">
+                            {item.name}
+                          </span>
+                          <span className="text-sm font-bold num text-zinc-900 dark:text-zinc-100 shrink-0">
+                            {hideBalance ? '••••' : formatIDR(item.amount)}
+                          </span>
+                        </span>
+                        <span className="flex items-center gap-2 mt-1.5">
+                          <span className="track flex-1">
+                            <span
+                              className="block h-full rounded-full"
+                              style={{ width: `${item.percentage}%`, backgroundColor: item.color }}
+                            />
+                          </span>
+                          <span className="text-[11px] text-muted num w-16 text-right shrink-0">
+                            {item.percentage}% · {item.count}x
+                          </span>
+                        </span>
+                      </span>
+                    </button>
+                  ))}
+                </div>
               </div>
-
-              {incomeData.items.map(item => (
-                <button
-                  key={item.categoryId}
-                  onClick={() => setSelectedCategoryModal(item.categoryId)}
-                  className="w-full p-3 rounded-2xl bg-zinc-50 dark:bg-zinc-800/40 border border-zinc-200/80 dark:border-zinc-800/80 hover:border-emerald-500/50 transition-all text-left active:scale-98 group"
-                >
-                  <div className="flex items-center justify-between mb-1.5">
-                    <div className="flex items-center gap-2.5">
-                      <div
-                        className="w-8 h-8 rounded-xl flex items-center justify-center text-white shadow-xs shrink-0"
-                        style={{ backgroundColor: item.color }}
-                      >
-                        <DynamicIcon name={item.icon} className="w-4 h-4" />
-                      </div>
-                      <div>
-                        <h4 className="text-xs font-bold text-zinc-900 dark:text-zinc-100 group-hover:text-emerald-500 transition-colors">
-                          {item.name}
-                        </h4>
-                        <span className="text-[10px] text-zinc-400">
-                          {item.count}x masuk
-                        </span>
-                      </div>
-                    </div>
-
-                    <div className="text-right">
-                      <p className="text-xs font-extrabold text-emerald-600 dark:text-emerald-400 tabular-nums">
-                        {hideBalance ? '••••••' : formatIDR(item.amount)}
-                      </p>
-                      <span className="text-[10px] font-bold text-emerald-500 tabular-nums">
-                        {item.percentage}%
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Horizontal Progress Bar */}
-                  <div className="w-full h-1.5 rounded-full bg-zinc-200 dark:bg-zinc-700/60 overflow-hidden">
-                    <div
-                      className="h-full rounded-full transition-all duration-500"
-                      style={{
-                        width: `${item.percentage}%`,
-                        backgroundColor: item.color,
-                      }}
-                    />
-                  </div>
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
+            );
+          })()}
 
         {/* TAB 3: GRAFIK BATANG ARUS KAS HARIAN (F-06: Touch-First Interactive Chart) */}
         {activeTab === 'trend' && (() => {
@@ -838,7 +664,7 @@ Catat & kontrol keuangan harianmu dengan Money Talk!`;
       {/* BATCH 66: 6-MONTH HISTORICAL COMPARISON & WALLET BREAKDOWN */}
       <div className="grid grid-cols-1 gap-4">
         {/* 6-Month Cashflow Trajectory Card */}
-        <div className="p-4 rounded-3xl bg-white dark:bg-zinc-900 border border-zinc-200/80 dark:border-zinc-800 shadow-ios-sm space-y-3">
+        <div className="p-4 card space-y-3">
           <div className="flex items-center justify-between">
             <div>
               <h3 className="text-sm font-extrabold text-zinc-900 dark:text-zinc-100">
@@ -908,7 +734,7 @@ Catat & kontrol keuangan harianmu dengan Money Talk!`;
 
         {/* Wallet Spending Distribution Card */}
         {walletExpenseBreakdown.length > 0 && (
-          <div className="p-4 rounded-3xl bg-white dark:bg-zinc-900 border border-zinc-200/80 dark:border-zinc-800 shadow-ios-sm space-y-3">
+          <div className="p-4 card space-y-3">
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-extrabold text-zinc-900 dark:text-zinc-100">
                 Pengeluaran per Sumber Dompet

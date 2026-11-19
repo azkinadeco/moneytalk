@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useFinance } from '../../context/FinanceContext';
 import { RecurringTransaction } from '../../types';
-import { formatIDR } from '../../utils/format';
+import { formatIDR, getCurrentMonthString } from '../../utils/format';
 import { DynamicIcon } from '../common/DynamicIcon';
 import confetti from 'canvas-confetti';
 import { Repeat, Plus, Calendar, Check, Trash2, Zap, ArrowDownLeft, ArrowUpRight } from 'lucide-react';
@@ -64,7 +64,6 @@ export const RecurringView: React.FC = () => {
       spread: 50,
       origin: { y: 0.8 },
     });
-    alert(`Transaksi "${recName}" telah otomatis dicatat ke riwayat transaksi bulan ini.`);
   };
 
   const getCategory = (catId: string) => {
@@ -76,33 +75,27 @@ export const RecurringView: React.FC = () => {
   };
 
   return (
-    <div className="space-y-4 pb-24">
+    <div className="space-y-4">
       {/* Commitment Summary Card */}
-      <div className="p-5 rounded-3xl bg-zinc-900 text-white shadow-ios-elevated border border-white/10 relative overflow-hidden">
-        <div className="flex items-center justify-between mb-2">
-          <span className="text-xs text-zinc-400 font-semibold flex items-center gap-1.5">
-            <Repeat className="w-4 h-4 text-indigo-400" />
-            <span>Tagihan Rutin</span>
-          </span>
-          <span className="text-[10px] font-bold bg-white/10 px-2 py-0.5 rounded-full text-zinc-300">
-            Per Bulan
-          </span>
-        </div>
-        <h3 className="text-3xl font-extrabold tracking-tight tabular-nums">
-          {hideBalance ? 'Rp ••••••••' : formatIDR(totalMonthlyCommitment)}
-        </h3>
+      <div className="card p-4">
+        <p className="text-xs text-muted flex items-center gap-1.5">
+          <Repeat className="w-3.5 h-3.5 text-indigo-500" />
+          Total tagihan aktif per bulan
+        </p>
+        <p className="text-[26px] leading-tight font-extrabold num text-zinc-900 dark:text-zinc-50 mt-0.5">
+          {hideBalance ? 'Rp ••••••' : formatIDR(totalMonthlyCommitment)}
+        </p>
+        <p className="text-xs text-muted mt-1">
+          {recurring.filter(r => r.isActive && r.type === 'expense' && r.lastExecuted?.startsWith(getCurrentMonthString())).length} dari{' '}
+          {recurring.filter(r => r.isActive && r.type === 'expense').length} tagihan sudah dibayar bulan ini
+        </p>
       </div>
 
       {/* Header and Add Button */}
       <div className="flex items-center justify-between px-1">
-        <h3 className="text-sm font-bold text-zinc-900 dark:text-zinc-100">
-          Daftar Langganan
-        </h3>
-        <button
-          onClick={() => setShowAddModal(true)}
-          className="min-h-[36px] flex items-center gap-1 text-xs font-bold text-emerald-500 bg-emerald-50 dark:bg-emerald-950/40 px-3 py-1.5 rounded-xl hover:bg-emerald-100 transition-colors active:scale-95"
-        >
-          <Plus className="w-3.5 h-3.5 stroke-[3]" />
+        <h3 className="section-title">Daftar tagihan & langganan</h3>
+        <button onClick={() => setShowAddModal(true)} className="link min-h-[32px]">
+          <Plus className="w-3.5 h-3.5" />
           <span>Tambah</span>
         </button>
       </div>
@@ -113,26 +106,23 @@ export const RecurringView: React.FC = () => {
           const cat = getCategory(item.categoryId);
           const wal = getWallet(item.walletId);
           const isExpense = item.type === 'expense';
+          const paidThisMonth = Boolean(item.lastExecuted?.startsWith(getCurrentMonthString()));
 
           return (
             <div
               key={item.id}
-              className={`p-4 rounded-3xl bg-white dark:bg-zinc-900 border transition-all ${
-                item.isActive
-                  ? 'border-zinc-200/80 dark:border-zinc-800 shadow-ios-sm'
-                  : 'border-zinc-200/40 dark:border-zinc-800/40 opacity-60'
-              }`}
+              className={`card p-4 transition-all ${item.isActive ? '' : 'opacity-60'}`}
             >
-              <div className="flex items-start justify-between">
-                <div className="flex items-center gap-3">
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex items-center gap-3 min-w-0">
                   <div
                     className="w-10 h-10 rounded-2xl flex items-center justify-center text-white shrink-0 shadow-sm"
                     style={{ backgroundColor: cat.color }}
                   >
                     <DynamicIcon name={cat.icon} className="w-5 h-5" />
                   </div>
-                  <div>
-                    <h4 className="text-sm font-bold text-zinc-900 dark:text-zinc-100">
+                  <div className="min-w-0">
+                    <h4 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100 truncate">
                       {item.name}
                     </h4>
                     <p className="text-[11px] text-zinc-400 mt-0.5">
@@ -141,13 +131,13 @@ export const RecurringView: React.FC = () => {
                   </div>
                 </div>
 
-                <div className="text-right">
+                <div className="text-right shrink-0">
                   <span
-                    className={`text-sm font-bold ${
-                      isExpense ? 'text-rose-500' : 'text-emerald-500'
+                    className={`text-sm font-bold num whitespace-nowrap ${
+                      isExpense ? 'text-zinc-900 dark:text-zinc-100' : 'text-emerald-600 dark:text-emerald-400'
                     }`}
                   >
-                    {hideBalance ? '••••••' : `${isExpense ? '-' : '+'}${formatIDR(item.amount)}`}
+                    {hideBalance ? '••••••' : `${isExpense ? '−' : '+'}${formatIDR(item.amount)}`}
                   </span>
                   <div className="flex items-center justify-end gap-2 mt-1">
                     <button
@@ -166,13 +156,21 @@ export const RecurringView: React.FC = () => {
 
               {/* Bottom Actions: Execute / Delete */}
               <div className="mt-3 pt-3 border-t border-zinc-100 dark:border-zinc-800 flex items-center justify-between text-xs">
-                <button
-                  onClick={() => handleExecute(item.id, item.name)}
-                  className="flex items-center gap-1.5 text-xs font-semibold text-indigo-500 hover:text-indigo-600 active:scale-95 transition-all"
-                >
-                  <Zap className="w-3.5 h-3.5" />
-                  Catat Bulan Ini Sekarang
-                </button>
+                {paidThisMonth ? (
+                  <span className="flex items-center gap-1.5 text-xs font-semibold text-emerald-600 dark:text-emerald-400">
+                    <Check className="w-3.5 h-3.5" />
+                    Sudah dicatat bulan ini
+                  </span>
+                ) : (
+                  <button
+                    onClick={() => handleExecute(item.id, item.name)}
+                    disabled={!item.isActive}
+                    className="flex items-center gap-1.5 text-xs font-semibold text-indigo-500 hover:text-indigo-600 active:scale-95 transition-all disabled:opacity-40"
+                  >
+                    <Zap className="w-3.5 h-3.5" />
+                    {isExpense ? 'Bayar & catat sekarang' : 'Catat pemasukan sekarang'}
+                  </button>
+                )}
 
                 <button
                   onClick={() => {

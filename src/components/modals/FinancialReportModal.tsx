@@ -44,7 +44,7 @@ export const FinancialReportModal: React.FC<FinancialReportModalProps> = ({ isOp
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
       <div className="fixed inset-0" onClick={onClose} />
 
-      <div className="relative w-full max-w-lg bg-white dark:bg-zinc-900 rounded-[32px] p-6 shadow-ios-elevated z-10 max-h-[90vh] overflow-y-auto border border-zinc-200 dark:border-zinc-800">
+      <div className="relative w-full max-w-lg bg-white dark:bg-zinc-900 rounded-3xl p-6 shadow-ios-elevated z-10 max-h-[90vh] overflow-y-auto border border-zinc-200 dark:border-zinc-800">
         {/* Header Action */}
         <div className="flex items-center justify-between pb-4 border-b border-zinc-200 dark:border-zinc-800">
           <div className="flex items-center gap-2">

@@ -1,113 +1,68 @@
-import React, { useState, useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useFinance } from '../../context/FinanceContext';
-import { formatIDR } from '../../utils/format';
+import { formatIDR, getCurrentMonthString } from '../../utils/format';
 import { sounds } from '../../utils/audio';
-import confetti from 'canvas-confetti';
-import { BellRing, Check, ChevronRight, X, Repeat } from 'lucide-react';
+import { Repeat, X } from 'lucide-react';
 import { TabType } from '../../types';
 
 interface SmartReminderBannerProps {
   onNavigate: (tab: TabType | 'recurring') => void;
 }
 
+/** Shows the most urgent unpaid recurring bill (due within 5 days or overdue) with 1-tap pay. */
 export const SmartReminderBanner: React.FC<SmartReminderBannerProps> = ({ onNavigate }) => {
-  const { recurring, executeRecurring, selectedMonth, hideBalance } = useFinance();
-  const [dismissedIds, setDismissedIds] = useState<string[]>([]);
-  const [justPaidName, setJustPaidName] = useState<string | null>(null);
+  const { recurring, executeRecurring, hideBalance } = useFinance();
+  const [dismissed, setDismissed] = useState<string[]>([]);
 
-  const dueRecurring = useMemo(() => {
-    const today = new Date();
-    const currentDay = today.getDate();
+  const due = useMemo(() => {
+    const month = getCurrentMonthString();
+    const today = new Date().getDate();
+    return recurring
+      .filter(r => r.isActive && r.type === 'expense' && !dismissed.includes(r.id))
+      .filter(r => !r.lastExecuted?.startsWith(month))
+      .map(r => ({ ...r, diff: r.dayOfMonth - today }))
+      .filter(r => r.diff <= 5)
+      .sort((a, b) => a.diff - b.diff);
+  }, [recurring, dismissed]);
 
-    return recurring.filter(rec => {
-      if (!rec.isActive) return false;
-      if (dismissedIds.includes(rec.id)) return false;
-      const alreadyExecutedThisMonth =
-        rec.lastExecuted && rec.lastExecuted.startsWith(selectedMonth);
-      if (alreadyExecutedThisMonth) return false;
-
-      // Show if due within 5 days or past due day in current month
-      const dayDiff = rec.dayOfMonth - currentDay;
-      return dayDiff <= 5;
-    });
-  }, [recurring, dismissedIds, selectedMonth]);
-
-  if (justPaidName) {
-    return (
-      <div className="p-3 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 text-xs font-bold flex items-center justify-between animate-in fade-in duration-200">
-        <div className="flex items-center gap-2">
-          <Check className="w-4 h-4 shrink-0" />
-          <span>Tagihan "{justPaidName}" berhasil dicatat otomatis!</span>
-        </div>
-      </div>
-    );
-  }
-
-  if (dueRecurring.length === 0) return null;
-
-  const topBill = dueRecurring[0];
-
-  const handlePayNow = () => {
-    sounds.playSuccess();
-    sounds.vibrate(35);
-    executeRecurring(topBill.id);
-    setJustPaidName(topBill.name);
-    confetti({
-      particleCount: 35,
-      spread: 55,
-      origin: { y: 0.7 },
-    });
-    setTimeout(() => {
-      setJustPaidName(null);
-    }, 3500);
-  };
-
-  const handleDismiss = () => {
-    sounds.playPop();
-    setDismissedIds(prev => [...prev, topBill.id]);
-  };
+  if (due.length === 0) return null;
+  const bill = due[0];
+  const when =
+    bill.diff < 0 ? `Terlewat ${-bill.diff} hari` : bill.diff === 0 ? 'Jatuh tempo hari ini' : `${bill.diff} hari lagi`;
 
   return (
-    <div className="p-3.5 rounded-2xl bg-indigo-500/10 dark:bg-indigo-500/15 border border-indigo-500/25 flex items-center justify-between gap-2.5 animate-in fade-in duration-200">
-      <div
-        onClick={() => onNavigate('recurring')}
-        className="flex items-center gap-2.5 min-w-0 flex-1 cursor-pointer"
+    <section className="card p-3 flex items-center gap-3 animate-fade-in">
+      <button onClick={() => onNavigate('recurring')} className="flex items-center gap-3 min-w-0 flex-1 text-left">
+        <span className="icon-tile bg-indigo-500/10 text-indigo-500">
+          <Repeat className="w-[18px] h-[18px]" />
+        </span>
+        <span className="min-w-0">
+          <span className={`block text-[11px] font-semibold ${bill.diff < 0 ? 'text-rose-500' : 'text-indigo-500'}`}>
+            {when}
+            {due.length > 1 ? ` · +${due.length - 1} tagihan lain` : ''}
+          </span>
+          <span className="block text-sm font-semibold text-zinc-900 dark:text-zinc-100 truncate">
+            {bill.name} <span className="text-muted font-medium num">{hideBalance ? '••••' : formatIDR(bill.amount)}</span>
+          </span>
+        </span>
+      </button>
+      <button
+        onClick={() => {
+          sounds.playSuccess();
+          sounds.vibrate(30);
+          executeRecurring(bill.id);
+        }}
+        className="btn-sm btn bg-indigo-500 text-white hover:bg-indigo-600"
       >
-        <div className="w-9 h-9 rounded-xl bg-indigo-500 text-white flex items-center justify-center shrink-0 shadow-xs">
-          <Repeat className="w-4 h-4" />
-        </div>
-        <div className="min-w-0">
-          <div className="flex items-center gap-1.5">
-            <span className="text-[10px] font-extrabold uppercase tracking-wider text-indigo-500">
-              Pengingat Tagihan • Tgl {topBill.dayOfMonth}
-            </span>
-          </div>
-          <p className="text-xs font-bold text-zinc-900 dark:text-zinc-100 truncate">
-            {topBill.name} •{' '}
-            <span className="text-indigo-600 dark:text-indigo-400 tabular-nums">
-              {hideBalance ? '••••••' : formatIDR(topBill.amount, true)}
-            </span>
-          </p>
-        </div>
-      </div>
-
-      <div className="flex items-center gap-1.5 shrink-0">
-        <button
-          type="button"
-          onClick={handlePayNow}
-          className="min-h-[36px] px-3 py-1.5 rounded-xl bg-indigo-500 hover:bg-indigo-600 text-white text-xs font-bold active:scale-95 transition-all shadow-xs"
-        >
-          Catat 1-Tap
-        </button>
-        <button
-          type="button"
-          onClick={handleDismiss}
-          aria-label="Sembunyikan pengingat"
-          className="w-8 h-8 rounded-xl text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 flex items-center justify-center active:scale-90"
-        >
-          <X className="w-3.5 h-3.5" />
-        </button>
-      </div>
-    </div>
+        Bayar
+      </button>
+      <button
+        onClick={() => setDismissed(prev => [...prev, bill.id])}
+        aria-label="Sembunyikan pengingat"
+        className="w-8 h-8 -mr-1 rounded-full flex items-center justify-center text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+      >
+        <X className="w-4 h-4" />
+      </button>
+    </section>
   );
 };

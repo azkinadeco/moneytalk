@@ -1,119 +1,74 @@
 import React, { useState, useMemo } from 'react';
 import { useFinance } from '../../context/FinanceContext';
 import { Transaction } from '../../types';
-import {
-  formatIDR,
-  formatDateIndonesian,
-  formatFullDate,
-  getTodayDateString,
-} from '../../utils/format';
-import { DynamicIcon } from '../common/DynamicIcon';
-import {
-  Search,
-  Trash2,
-  Calendar,
-  Wallet as WalletIcon,
-  Edit2,
-  Copy,
-  FileCheck,
-} from 'lucide-react';
+import { formatIDR, formatDateIndonesian, getMonthName, toDateKey } from '../../utils/format';
+import { TransactionRow } from '../common/TransactionRow';
+import { TransactionDetailSheet } from '../common/TransactionDetailSheet';
+import { Search, X, SlidersHorizontal, Plus, ReceiptText } from 'lucide-react';
 import { sounds } from '../../utils/audio';
-import confetti from 'canvas-confetti';
 
 interface TransactionListViewProps {
   onOpenAddModal: () => void;
   onEditTransaction: (tx: Transaction) => void;
 }
 
+type SortKey = 'latest' | 'oldest' | 'highest' | 'lowest';
+type Period = 'month' | '7days' | 'all';
+
 export const TransactionListView: React.FC<TransactionListViewProps> = ({
   onOpenAddModal,
   onEditTransaction,
 }) => {
-  const {
-    transactions,
-    categories,
-    wallets,
-    addTransaction,
-    deleteTransaction,
-    hideBalance,
-    selectedMonth,
-  } = useFinance();
+  const { transactions, categories, wallets, hideBalance, selectedMonth } = useFinance();
 
-  const [searchQuery, setSearchQuery] = useState('');
-  const [selectedType, setSelectedType] = useState<string>('all');
-  const [selectedWalletFilter, setSelectedWalletFilter] = useState<string>('all');
-  const [sortBy, setSortBy] = useState<'latest' | 'oldest' | 'highest' | 'lowest'>('latest');
-  const [timeFilter, setTimeFilter] = useState<'month' | '7days' | 'all'>('month');
+  const [query, setQuery] = useState('');
+  const [type, setType] = useState<'all' | 'expense' | 'income' | 'transfer'>('all');
+  const [walletFilter, setWalletFilter] = useState('all');
+  const [sortBy, setSortBy] = useState<SortKey>('latest');
+  const [period, setPeriod] = useState<Period>('month');
+  const [showFilters, setShowFilters] = useState(false);
   const [activeTx, setActiveTx] = useState<Transaction | null>(null);
 
-  // Filtered list
   const filtered = useMemo(() => {
-    const today = new Date();
-    const sevenDaysAgo = new Date();
-    sevenDaysAgo.setDate(today.getDate() - 7);
-    const sevenDaysAgoStr = sevenDaysAgo.toISOString().split('T')[0];
+    const since = new Date();
+    since.setDate(since.getDate() - 6);
+    const sinceStr = toDateKey(since);
+    const q = query.trim().toLowerCase();
 
-    return transactions
-      .filter(tx => {
-        // Time Filter
-        if (timeFilter === 'month' && !tx.date.startsWith(selectedMonth)) return false;
-        if (timeFilter === '7days' && tx.date < sevenDaysAgoStr) return false;
+    const list = transactions.filter(tx => {
+      if (period === 'month' && !tx.date.startsWith(selectedMonth)) return false;
+      if (period === '7days' && tx.date < sinceStr) return false;
+      if (type !== 'all' && tx.type !== type) return false;
+      if (walletFilter !== 'all' && tx.walletId !== walletFilter && tx.targetWalletId !== walletFilter)
+        return false;
+      if (q) {
+        const cat = categories.find(c => c.id === tx.categoryId)?.name.toLowerCase() || '';
+        const hit =
+          (tx.note || '').toLowerCase().includes(q) ||
+          cat.includes(q) ||
+          (tx.tags || []).some(t => t.toLowerCase().includes(q)) ||
+          String(tx.amount).includes(q.replace(/\D/g, '') || '¤');
+        if (!hit) return false;
+      }
+      return true;
+    });
 
-        // Type filter
-        if (selectedType !== 'all' && tx.type !== selectedType) return false;
+    if (sortBy === 'highest') return [...list].sort((a, b) => b.amount - a.amount);
+    if (sortBy === 'lowest') return [...list].sort((a, b) => a.amount - b.amount);
+    if (sortBy === 'oldest') return [...list].reverse();
+    return list; // context already sorts newest-first
+  }, [transactions, period, selectedMonth, type, walletFilter, query, sortBy, categories]);
 
-        // Wallet filter (Batch 67)
-        if (
-          selectedWalletFilter !== 'all' &&
-          tx.walletId !== selectedWalletFilter &&
-          tx.targetWalletId !== selectedWalletFilter
-        ) {
-          return false;
-        }
-
-        // Search query (Note, Category, or #Tag)
-        if (searchQuery.trim()) {
-          const q = searchQuery.toLowerCase();
-          const noteMatch = (tx.note || '').toLowerCase().includes(q);
-          const catName =
-            categories.find(c => c.id === tx.categoryId)?.name.toLowerCase() || '';
-          const catMatch = catName.includes(q);
-          const tagMatch = (tx.tags || []).some(t => t.toLowerCase().includes(q));
-          if (!noteMatch && !catMatch && !tagMatch) return false;
-        }
-
-        return true;
-      })
-      .sort((a, b) => {
-        if (sortBy === 'highest') return b.amount - a.amount;
-        if (sortBy === 'lowest') return a.amount - b.amount;
-        if (sortBy === 'oldest') return a.date.localeCompare(b.date);
-        return b.date.localeCompare(a.date); // default latest
-      });
-  }, [
-    transactions,
-    selectedMonth,
-    selectedType,
-    selectedWalletFilter,
-    searchQuery,
-    sortBy,
-    timeFilter,
-    categories,
-  ]);
-
-  // Group by date
-  const groupedByDate = useMemo(() => {
+  const grouped = useMemo(() => {
+    if (sortBy === 'highest' || sortBy === 'lowest') return [['', filtered] as [string, Transaction[]]];
     const map = new Map<string, Transaction[]>();
     for (const tx of filtered) {
-      if (!map.has(tx.date)) {
-        map.set(tx.date, []);
-      }
+      if (!map.has(tx.date)) map.set(tx.date, []);
       map.get(tx.date)!.push(tx);
     }
     return Array.from(map.entries());
-  }, [filtered]);
+  }, [filtered, sortBy]);
 
-  // Filtered totals
   const totals = useMemo(() => {
     let income = 0;
     let expense = 0;
@@ -124,293 +79,211 @@ export const TransactionListView: React.FC<TransactionListViewProps> = ({
     return { income, expense };
   }, [filtered]);
 
-  const getCategoryInfo = (catId: string) => {
-    return (
-      categories.find(c => c.id === catId) || {
-        name: 'Lain-lain',
-        icon: 'HelpCircle',
-        color: '#6B7280',
-      }
-    );
-  };
+  const activeFilterCount =
+    (period !== 'month' ? 1 : 0) + (walletFilter !== 'all' ? 1 : 0) + (sortBy !== 'latest' ? 1 : 0);
+  const money = (v: number) => (hideBalance ? '••••' : formatIDR(v));
+  const periodLabel =
+    period === 'month' ? getMonthName(selectedMonth) : period === '7days' ? '7 hari terakhir' : 'Semua waktu';
 
-  const getWalletName = (id: string) => {
-    return wallets.find(w => w.id === id)?.name || 'Dompet';
-  };
-
-  // Batch 67: 1-Tap Duplicate Transaction for Today
-  const handleDuplicateTransaction = (tx: Transaction) => {
-    const now = new Date();
-    const time = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-    addTransaction({
-      type: tx.type,
-      amount: tx.amount,
-      originalAmount: tx.originalAmount,
-      currency: tx.currency,
-      categoryId: tx.categoryId,
-      walletId: tx.walletId,
-      targetWalletId: tx.targetWalletId,
-      date: getTodayDateString(),
-      time,
-      note: tx.note,
-      tags: tx.tags,
-      isReimburse: tx.isReimburse,
-      reimburseStatus: tx.isReimburse ? 'pending' : undefined,
-    });
-    confetti({ particleCount: 35, spread: 55, origin: { y: 0.8 } });
-    setActiveTx(null);
-  };
+  const tap = () => sounds.playPop();
 
   return (
-    <div className="space-y-3.5 pb-24">
-      {/* Search & Filter Header */}
-      <div className="space-y-2.5">
-        {/* Search Bar (Anti-Zoom: 16px min on mobile) */}
-        <div className="relative">
-          <Search className="w-4 h-4 text-zinc-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+    <div className="space-y-3">
+      {/* Search + filter toggle */}
+      <div className="flex gap-2">
+        <div className="relative flex-1">
+          <Search className="w-4 h-4 text-zinc-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
           <input
-            type="text"
-            placeholder="Cari catatan, kategori, atau #tag..."
-            value={searchQuery}
-            onChange={e => setSearchQuery(e.target.value)}
-            className="w-full min-h-[44px] pl-10 pr-16 py-2.5 rounded-2xl bg-white dark:bg-zinc-900 border border-zinc-200/80 dark:border-zinc-800 text-[16px] sm:text-sm text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 transition-all shadow-ios-sm"
+            type="search"
+            placeholder="Cari catatan, kategori, #tag"
+            value={query}
+            onChange={e => setQuery(e.target.value)}
+            className="field !bg-white dark:!bg-zinc-900 !border-zinc-200/70 dark:!border-zinc-800 pl-10 pr-9"
           />
-          {searchQuery && (
+          {query && (
             <button
-              onClick={() => {
-                sounds.playPop();
-                setSearchQuery('');
-              }}
-              className="absolute right-3.5 top-1/2 -translate-y-1/2 text-xs font-semibold text-zinc-400 hover:text-zinc-600 px-2 py-1"
+              onClick={() => setQuery('')}
+              aria-label="Hapus pencarian"
+              className="absolute right-1.5 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full flex items-center justify-center text-zinc-400"
             >
-              Clear
+              <X className="w-4 h-4" />
             </button>
           )}
         </div>
+        <button
+          onClick={() => {
+            tap();
+            setShowFilters(v => !v);
+          }}
+          aria-label="Filter"
+          aria-expanded={showFilters}
+          className={`relative w-11 h-11 shrink-0 rounded-xl border flex items-center justify-center transition-colors ${
+            showFilters || activeFilterCount
+              ? 'bg-zinc-900 text-white border-zinc-900 dark:bg-zinc-100 dark:text-zinc-900 dark:border-zinc-100'
+              : 'bg-white dark:bg-zinc-900 border-zinc-200/70 dark:border-zinc-800 text-zinc-500'
+          }`}
+        >
+          <SlidersHorizontal className="w-[18px] h-[18px]" />
+          {activeFilterCount > 0 && (
+            <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-emerald-500 text-white text-[10px] font-bold flex items-center justify-center">
+              {activeFilterCount}
+            </span>
+          )}
+        </button>
+      </div>
 
-        {/* Time Range & Sort Row */}
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex gap-1 bg-zinc-100 dark:bg-zinc-900 p-1 rounded-xl border border-zinc-200/60 dark:border-zinc-800">
-            {[
-              { id: 'month', label: 'Bulan Ini' },
-              { id: '7days', label: '7 Hari' },
-              { id: 'all', label: 'Semua' },
-            ].map(tf => (
-              <button
-                key={tf.id}
-                type="button"
-                onClick={() => {
-                  sounds.playPop();
-                  setTimeFilter(tf.id as any);
-                }}
-                className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all ${
-                  timeFilter === tf.id
-                    ? 'bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 shadow-xs'
-                    : 'text-zinc-500'
-                }`}
-              >
-                {tf.label}
-              </button>
-            ))}
-          </div>
-
-          <select
-            value={sortBy}
-            onChange={e => {
-              sounds.playPop();
-              setSortBy(e.target.value as 'latest' | 'oldest' | 'highest' | 'lowest');
-            }}
-            className="min-h-[36px] px-2.5 py-1 rounded-xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-[16px] sm:text-xs text-zinc-700 dark:text-zinc-300 font-semibold shrink-0 focus:outline-none"
-          >
-            <option value="latest">Terbaru</option>
-            <option value="oldest">Terlama</option>
-            <option value="highest">Terbesar</option>
-            <option value="lowest">Terkecil</option>
-          </select>
-        </div>
-
-        {/* Filter Pills: Type & Wallet */}
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar text-xs">
-          {[
-            { key: 'all', label: 'Semua Tipe' },
-            { key: 'expense', label: 'Keluar' },
-            { key: 'income', label: 'Masuk' },
-            { key: 'transfer', label: 'Transfer' },
-          ].map(f => (
-            <button
-              key={f.key}
-              onClick={() => {
-                sounds.playPop();
-                sounds.vibrate(10);
-                setSelectedType(f.key);
-              }}
-              className={`min-h-[34px] px-3 py-1 rounded-xl font-bold transition-all active:scale-95 flex items-center justify-center shrink-0 ${
-                selectedType === f.key
-                  ? 'bg-zinc-900 text-white dark:bg-white dark:text-zinc-900 shadow-xs'
-                  : 'bg-white text-zinc-600 dark:bg-zinc-900 dark:text-zinc-400 border border-zinc-200/80 dark:border-zinc-800'
-              }`}
-            >
-              {f.label}
-            </button>
-          ))}
-
-          <span className="text-zinc-300 dark:text-zinc-700 mx-0.5">|</span>
-
+      {/* Type segmented */}
+      <div className="segmented grid-cols-4">
+        {[
+          { k: 'all', l: 'Semua' },
+          { k: 'expense', l: 'Keluar' },
+          { k: 'income', l: 'Masuk' },
+          { k: 'transfer', l: 'Transfer' },
+        ].map(t => (
           <button
+            key={t.k}
             onClick={() => {
-              sounds.playPop();
-              setSelectedWalletFilter('all');
+              tap();
+              setType(t.k as typeof type);
             }}
-            className={`min-h-[34px] px-3 py-1 rounded-xl font-bold transition-all active:scale-95 shrink-0 ${
-              selectedWalletFilter === 'all'
-                ? 'bg-emerald-500 text-white shadow-xs'
-                : 'bg-white text-zinc-600 dark:bg-zinc-900 dark:text-zinc-400 border border-zinc-200/80 dark:border-zinc-800'
-            }`}
+            className={`segment ${type === t.k ? 'segment-active' : ''}`}
           >
-            Semua Dompet
+            {t.l}
           </button>
+        ))}
+      </div>
 
-          {wallets.map(w => (
+      {/* Advanced filters */}
+      {showFilters && (
+        <div className="card p-3 space-y-3 animate-fade-in">
+          <div>
+            <p className="label mb-1.5">Periode</p>
+            <div className="flex gap-1.5">
+              {[
+                { k: 'month', l: 'Bulan dipilih' },
+                { k: '7days', l: '7 hari' },
+                { k: 'all', l: 'Semua' },
+              ].map(p => (
+                <button
+                  key={p.k}
+                  onClick={() => {
+                    tap();
+                    setPeriod(p.k as Period);
+                  }}
+                  className={`chip ${period === p.k ? 'chip-active' : ''}`}
+                >
+                  {p.l}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div>
+            <p className="label mb-1.5">Dompet</p>
+            <div className="flex gap-1.5 overflow-x-auto no-scrollbar -mx-3 px-3">
+              <button
+                onClick={() => setWalletFilter('all')}
+                className={`chip ${walletFilter === 'all' ? 'chip-active' : ''}`}
+              >
+                Semua
+              </button>
+              {wallets.map(w => (
+                <button
+                  key={w.id}
+                  onClick={() => setWalletFilter(w.id)}
+                  className={`chip ${walletFilter === w.id ? 'chip-active' : ''}`}
+                >
+                  <span className="w-2 h-2 rounded-full" style={{ backgroundColor: w.color }} />
+                  {w.name}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div>
+            <p className="label mb-1.5">Urutkan</p>
+            <div className="flex gap-1.5 overflow-x-auto no-scrollbar">
+              {[
+                { k: 'latest', l: 'Terbaru' },
+                { k: 'oldest', l: 'Terlama' },
+                { k: 'highest', l: 'Terbesar' },
+                { k: 'lowest', l: 'Terkecil' },
+              ].map(s => (
+                <button
+                  key={s.k}
+                  onClick={() => setSortBy(s.k as SortKey)}
+                  className={`chip ${sortBy === s.k ? 'chip-active' : ''}`}
+                >
+                  {s.l}
+                </button>
+              ))}
+            </div>
+          </div>
+          {activeFilterCount > 0 && (
             <button
-              key={w.id}
               onClick={() => {
-                sounds.playPop();
-                setSelectedWalletFilter(w.id);
+                setPeriod('month');
+                setWalletFilter('all');
+                setSortBy('latest');
               }}
-              className={`min-h-[34px] px-3 py-1 rounded-xl font-bold transition-all active:scale-95 flex items-center gap-1.5 shrink-0 ${
-                selectedWalletFilter === w.id
-                  ? 'bg-emerald-500 text-white shadow-xs'
-                  : 'bg-white text-zinc-600 dark:bg-zinc-900 dark:text-zinc-400 border border-zinc-200/80 dark:border-zinc-800'
-              }`}
+              className="link"
             >
-              <span
-                className="w-2 h-2 rounded-full"
-                style={{ backgroundColor: selectedWalletFilter === w.id ? '#fff' : w.color }}
-              />
-              <span>{w.name}</span>
+              Reset filter
             </button>
-          ))}
+          )}
+        </div>
+      )}
+
+      {/* Summary */}
+      <div className="card px-4 py-3">
+        <p className="text-[11px] text-muted capitalize">
+          {periodLabel} · {filtered.length} transaksi
+        </p>
+        <div className="grid grid-cols-2 gap-3 mt-1">
+          <div>
+            <p className="text-[11px] text-muted">Masuk</p>
+            <p className="text-sm font-bold num text-emerald-600 dark:text-emerald-400">{money(totals.income)}</p>
+          </div>
+          <div>
+            <p className="text-[11px] text-muted">Keluar</p>
+            <p className="text-sm font-bold num text-zinc-900 dark:text-zinc-100">{money(totals.expense)}</p>
+          </div>
         </div>
       </div>
 
-      {/* Summary Mini Bar */}
-      <div className="grid grid-cols-2 gap-2 p-3 rounded-2xl bg-white dark:bg-zinc-900 border border-zinc-200/80 dark:border-zinc-800 shadow-ios-sm">
-        <div>
-          <span className="text-[10px] text-zinc-400 uppercase font-semibold">
-            Total Masuk ({filtered.filter(t => t.type === 'income').length})
+      {/* List */}
+      {filtered.length === 0 ? (
+        <div className="card py-12 px-6 flex flex-col items-center text-center">
+          <span className="w-12 h-12 rounded-2xl surface-muted flex items-center justify-center text-zinc-400 mb-3">
+            <ReceiptText className="w-6 h-6" />
           </span>
-          <p className="text-sm font-bold text-emerald-500 tabular-nums">
-            {hideBalance ? '••••••' : formatIDR(totals.income)}
+          <p className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">Tidak ada transaksi</p>
+          <p className="text-xs text-muted mt-1">
+            {query || activeFilterCount || type !== 'all'
+              ? 'Coba ubah kata kunci atau filter.'
+              : 'Belum ada catatan di periode ini.'}
           </p>
-        </div>
-        <div>
-          <span className="text-[10px] text-zinc-400 uppercase font-semibold">
-            Total Keluar ({filtered.filter(t => t.type === 'expense').length})
-          </span>
-          <p className="text-sm font-bold text-rose-500 tabular-nums">
-            {hideBalance ? '••••••' : formatIDR(totals.expense)}
-          </p>
-        </div>
-      </div>
-
-      {/* Grouped Transaction List */}
-      {groupedByDate.length === 0 ? (
-        <div className="py-12 text-center rounded-3xl bg-white dark:bg-zinc-900 border border-zinc-200/80 dark:border-zinc-800">
-          <p className="text-sm text-zinc-400 font-medium">Tidak ada transaksi ditemukan</p>
-          <button
-            onClick={onOpenAddModal}
-            className="mt-3 text-xs font-semibold text-emerald-500 bg-emerald-50 dark:bg-emerald-950/40 px-3.5 py-2 rounded-xl hover:bg-emerald-100 transition-colors"
-          >
-            + Tambah Transaksi
+          <button onClick={onOpenAddModal} className="btn-primary mt-4">
+            <Plus className="w-4 h-4" />
+            Catat transaksi
           </button>
         </div>
       ) : (
         <div className="space-y-4">
-          {groupedByDate.map(([dateStr, items]) => {
-            const dayExpense = items
-              .filter(i => i.type === 'expense')
-              .reduce((sum, i) => sum + i.amount, 0);
-
+          {grouped.map(([dateStr, items]) => {
+            const dayExpense = items.filter(i => i.type === 'expense').reduce((s, i) => s + i.amount, 0);
             return (
-              <div key={dateStr} className="space-y-1.5">
-                <div className="flex items-center justify-between px-2 text-xs font-semibold text-zinc-400">
-                  <span>{formatDateIndonesian(dateStr)}</span>
-                  {dayExpense > 0 && !hideBalance && (
-                    <span className="text-zinc-500">Keluar: {formatIDR(dayExpense, true)}</span>
-                  )}
-                </div>
-
-                <div className="bg-white dark:bg-zinc-900 rounded-3xl border border-zinc-200/80 dark:border-zinc-800 shadow-ios-sm overflow-hidden divide-y divide-zinc-100 dark:divide-zinc-800/60">
-                  {items.map(tx => {
-                    const isExpense = tx.type === 'expense';
-                    const isTransfer = tx.type === 'transfer';
-                    const cat = isTransfer
-                      ? { name: 'Transfer Antar Akun', icon: 'ArrowLeftRight', color: '#6366F1' }
-                      : getCategoryInfo(tx.categoryId);
-                    const sourceWal = getWalletName(tx.walletId);
-                    const targetWal = tx.targetWalletId
-                      ? getWalletName(tx.targetWalletId)
-                      : null;
-
-                    return (
-                      <div
-                        key={tx.id}
-                        onClick={() => setActiveTx(tx)}
-                        className="px-4 py-3 flex items-center justify-between hover:bg-zinc-50/80 dark:hover:bg-zinc-800/40 active:bg-zinc-100 dark:active:bg-zinc-800/80 transition-colors cursor-pointer"
-                      >
-                        <div className="flex items-center gap-3 min-w-0">
-                          <div
-                            className="w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 shadow-sm"
-                            style={{ backgroundColor: `${cat.color}18`, color: cat.color }}
-                          >
-                            <DynamicIcon name={cat.icon} className="w-5 h-5" />
-                          </div>
-
-                          <div className="min-w-0">
-                            <div className="flex items-center gap-1.5">
-                              <p className="text-sm font-bold text-zinc-900 dark:text-zinc-100 truncate">
-                                {tx.note || cat.name}
-                              </p>
-                              {tx.isReimburse && (
-                                <span className="px-1.5 py-0.5 rounded-md bg-blue-500/10 text-blue-500 text-[9px] font-extrabold shrink-0">
-                                  Reimburse
-                                </span>
-                              )}
-                            </div>
-                            <div className="flex items-center gap-1.5 text-[11px] text-zinc-400 mt-0.5 truncate">
-                              <span>{cat.name}</span>
-                              <span>•</span>
-                              <span>
-                                {isTransfer ? `${sourceWal} → ${targetWal}` : sourceWal}
-                              </span>
-                              {tx.tags && tx.tags.length > 0 && (
-                                <span className="text-emerald-500 font-semibold">
-                                  {tx.tags.join(' ')}
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="text-right shrink-0 pl-3">
-                          <p
-                            className={`text-sm font-bold tabular-nums ${
-                              isExpense
-                                ? 'text-rose-500'
-                                : isTransfer
-                                ? 'text-indigo-500'
-                                : 'text-emerald-500'
-                            }`}
-                          >
-                            {hideBalance
-                              ? '••••••'
-                              : `${isExpense ? '-' : isTransfer ? '' : '+'}${formatIDR(tx.amount)}`}
-                          </p>
-                          <p className="text-[11px] text-zinc-400 mt-0.5">{tx.time || ''}</p>
-                        </div>
-                      </div>
-                    );
-                  })}
+              <div key={dateStr || 'sorted'}>
+                {dateStr && (
+                  <div className="flex items-center justify-between px-1 mb-1.5 text-xs">
+                    <span className="font-semibold text-zinc-600 dark:text-zinc-300">
+                      {formatDateIndonesian(dateStr)}
+                    </span>
+                    {dayExpense > 0 && <span className="text-zinc-400 num">−{money(dayExpense)}</span>}
+                  </div>
+                )}
+                <div className="card-list">
+                  {items.map(tx => (
+                    <TransactionRow key={tx.id} tx={tx} onClick={setActiveTx} meta={dateStr ? 'time' : 'date'} />
+                  ))}
                 </div>
               </div>
             );
@@ -418,137 +291,7 @@ export const TransactionListView: React.FC<TransactionListViewProps> = ({
         </div>
       )}
 
-      {/* Transaction Detail Sheet */}
-      {activeTx && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="fixed inset-0" onClick={() => setActiveTx(null)} />
-          <div className="relative w-full max-w-lg bg-white dark:bg-zinc-900 rounded-t-3xl p-6 shadow-ios-elevated animate-slide-up z-10 border-t border-zinc-200 dark:border-zinc-800">
-            <div className="w-12 h-1.5 bg-zinc-300 dark:bg-zinc-700 rounded-full mx-auto mb-4" />
-
-            <div className="text-center pb-4 border-b border-zinc-100 dark:border-zinc-800">
-              <div className="flex items-center justify-center gap-1.5 mb-2">
-                <span
-                  className={`inline-block px-3 py-1 rounded-full text-xs font-semibold uppercase tracking-wider ${
-                    activeTx.type === 'expense'
-                      ? 'bg-rose-500/10 text-rose-500'
-                      : activeTx.type === 'transfer'
-                      ? 'bg-indigo-500/10 text-indigo-500'
-                      : 'bg-emerald-500/10 text-emerald-500'
-                  }`}
-                >
-                  {activeTx.type === 'expense'
-                    ? 'Pengeluaran'
-                    : activeTx.type === 'transfer'
-                    ? 'Transfer'
-                    : 'Pemasukan'}
-                </span>
-                {activeTx.isReimburse && (
-                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-blue-500/10 text-blue-500">
-                    <FileCheck className="w-3.5 h-3.5" />
-                    Reimburse Kantor
-                  </span>
-                )}
-              </div>
-
-              <h3 className="text-3xl font-extrabold text-zinc-900 dark:text-zinc-100 tabular-nums">
-                {formatIDR(activeTx.amount)}
-              </h3>
-              <p className="text-sm text-zinc-500 mt-1">{activeTx.note || 'Tanpa Catatan'}</p>
-
-              {activeTx.tags && activeTx.tags.length > 0 && (
-                <div className="flex items-center justify-center gap-1.5 mt-2">
-                  {activeTx.tags.map(tag => (
-                    <span
-                      key={tag}
-                      className="px-2 py-0.5 rounded-lg bg-emerald-500/10 text-emerald-500 text-[11px] font-bold"
-                    >
-                      {tag}
-                    </span>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            <div className="py-4 space-y-3 text-sm">
-              <div className="flex items-center justify-between text-zinc-600 dark:text-zinc-400">
-                <span className="flex items-center gap-2">
-                  <Calendar className="w-4 h-4 text-zinc-400" />
-                  Waktu
-                </span>
-                <span className="font-medium text-zinc-900 dark:text-zinc-100">
-                  {formatFullDate(activeTx.date)} {activeTx.time ? `• ${activeTx.time}` : ''}
-                </span>
-              </div>
-
-              <div className="flex items-center justify-between text-zinc-600 dark:text-zinc-400">
-                <span className="flex items-center gap-2">
-                  <WalletIcon className="w-4 h-4 text-zinc-400" />
-                  Rekening / Dompet
-                </span>
-                <span className="font-medium text-zinc-900 dark:text-zinc-100">
-                  {activeTx.type === 'transfer'
-                    ? `${getWalletName(activeTx.walletId)} → ${
-                        activeTx.targetWalletId ? getWalletName(activeTx.targetWalletId) : ''
-                      }`
-                    : getWalletName(activeTx.walletId)}
-                </span>
-              </div>
-            </div>
-
-            <div className="pt-2 space-y-2.5">
-              <div className="grid grid-cols-2 gap-2.5">
-                <button
-                  onClick={() => {
-                    const txToEdit = activeTx;
-                    setActiveTx(null);
-                    onEditTransaction(txToEdit);
-                  }}
-                  className="min-h-[44px] py-3 px-4 rounded-2xl bg-emerald-500 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-sm hover:bg-emerald-600 transition-colors active:scale-95"
-                >
-                  <Edit2 className="w-4 h-4" />
-                  Edit Transaksi
-                </button>
-
-                {/* Batch 67: 1-Tap Duplicate Transaction Today */}
-                <button
-                  onClick={() => handleDuplicateTransaction(activeTx)}
-                  className="min-h-[44px] py-3 px-4 rounded-2xl bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 font-bold text-xs flex items-center justify-center gap-2 hover:bg-indigo-500/20 transition-colors active:scale-95"
-                >
-                  <Copy className="w-4 h-4" />
-                  Duplikat Hari Ini
-                </button>
-              </div>
-
-              <div className="flex gap-2.5">
-                <button
-                  onClick={() => {
-                    if (
-                      confirm(
-                        `Hapus transaksi "${activeTx.note || 'ini'}" sebesar ${formatIDR(
-                          activeTx.amount
-                        )}?`
-                      )
-                    ) {
-                      deleteTransaction(activeTx.id);
-                      setActiveTx(null);
-                    }
-                  }}
-                  className="flex-1 min-h-[44px] py-3 px-4 rounded-2xl bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 font-semibold text-xs flex items-center justify-center gap-2 hover:bg-rose-100 transition-colors active:scale-95"
-                >
-                  <Trash2 className="w-4 h-4" />
-                  Hapus
-                </button>
-                <button
-                  onClick={() => setActiveTx(null)}
-                  className="flex-1 min-h-[44px] py-3 px-4 rounded-2xl bg-zinc-100 dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 font-semibold text-xs hover:bg-zinc-200 transition-colors active:scale-95"
-                >
-                  Tutup
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      <TransactionDetailSheet tx={activeTx} onClose={() => setActiveTx(null)} onEdit={onEditTransaction} />
     </div>
   );
 };

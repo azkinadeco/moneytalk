@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useFinance } from '../../context/FinanceContext';
 import { ShoppingItem } from '../../types';
-import { formatIDR } from '../../utils/format';
+import { formatIDR, getTodayDateString } from '../../utils/format';
 import confetti from 'canvas-confetti';
 import { ShoppingBag, Plus, Trash2, Check, ArrowRight, Sparkles } from 'lucide-react';
 
@@ -57,7 +57,7 @@ export const ShoppingListView: React.FC = () => {
       amount: boughtTotal,
       categoryId: shoppingCat?.id || 'cat-shopping',
       walletId,
-      date: new Date().toISOString().split('T')[0],
+      date: getTodayDateString(),
       note: `Belanja Supermarket (${shoppingItems.filter(i => i.isBought).length} barang)`,
     });
 
@@ -71,19 +71,9 @@ export const ShoppingListView: React.FC = () => {
   };
 
   return (
-    <div className="space-y-4 pb-24">
-      {/* Title */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-xl font-extrabold text-zinc-900 dark:text-zinc-100 tracking-tight">
-            Daftar Belanja
-          </h2>
-          <p className="text-xs text-zinc-400">Checklist belanja supermarket</p>
-        </div>
-      </div>
-
+    <div className="space-y-4">
       {/* Summary KPI Bar */}
-      <div className="grid grid-cols-2 gap-2 p-3.5 rounded-3xl bg-white dark:bg-zinc-900 border border-zinc-200/80 dark:border-zinc-800 shadow-ios-sm">
+      <div className="grid grid-cols-2 gap-2 p-3.5 card">
         <div>
           <span className="text-[10px] text-zinc-400 uppercase font-semibold">Total Estimasi</span>
           <p className="text-sm font-bold text-zinc-900 dark:text-zinc-100 tabular-nums">{formatIDR(totalEstimate)}</p>
@@ -97,33 +87,34 @@ export const ShoppingListView: React.FC = () => {
       {/* Add Item Form */}
       <form
         onSubmit={handleAddItem}
-        className="p-4 rounded-3xl bg-white dark:bg-zinc-900 border border-zinc-200/80 dark:border-zinc-800 shadow-ios-sm flex gap-2"
+        className="p-3 card flex gap-2"
       >
         <input
           type="text"
-          placeholder="Nama barang..."
+          placeholder="Nama barang"
           value={newItemName}
           onChange={e => setNewItemName(e.target.value)}
-          className="flex-1 min-h-[44px] px-3.5 py-2.5 rounded-xl bg-zinc-100 dark:bg-zinc-800 text-[16px] sm:text-xs text-zinc-900 dark:text-zinc-100 focus:outline-none"
+          className="field flex-1 min-w-0"
         />
         <input
           type="text"
           inputMode="numeric"
-          placeholder="Estimasi harga..."
+          placeholder="Harga"
           value={newItemPrice ? parseInt(newItemPrice, 10).toLocaleString('id-ID') : ''}
           onChange={e => setNewItemPrice(e.target.value.replace(/\D/g, ''))}
-          className="w-28 min-h-[44px] px-3 py-2.5 rounded-xl bg-zinc-100 dark:bg-zinc-800 text-[16px] sm:text-xs font-bold text-zinc-900 dark:text-zinc-100 focus:outline-none"
+          className="field w-24 shrink-0 font-semibold"
         />
         <button
           type="submit"
-          className="min-h-[44px] px-3.5 py-2.5 rounded-xl bg-emerald-500 text-white font-bold text-xs active:scale-95 transition-all shadow-sm flex items-center justify-center"
+          aria-label="Tambah barang"
+          className="btn-primary w-11 px-0 shrink-0"
         >
           <Plus className="w-4 h-4" />
         </button>
       </form>
 
       {/* Items List */}
-      <div className="bg-white dark:bg-zinc-900 rounded-3xl border border-zinc-200/80 dark:border-zinc-800 shadow-ios-sm divide-y divide-zinc-100 dark:divide-zinc-800 overflow-hidden">
+      <div className="card divide-y divide-zinc-100 dark:divide-zinc-800 overflow-hidden">
         {shoppingItems.map(it => (
           <div
             key={it.id}

@@ -1,165 +1,150 @@
 import React, { useState, useMemo } from 'react';
 import { useFinance } from '../../context/FinanceContext';
-import {
-  ChevronDown,
-  Check,
-  Bell,
-  Settings,
-  Volume2,
-  VolumeX,
-  Lock,
-} from 'lucide-react';
-import { getMonthName } from '../../utils/format';
+import { Bell, Check, ChevronDown, ChevronLeft, Lock, Settings } from 'lucide-react';
+import { getMonthName, getCurrentMonthString, shiftMonth } from '../../utils/format';
 import { sounds } from '../../utils/audio';
+import { useAlerts } from '../modals/NotificationModal';
 
 interface HeaderProps {
+  title: string;
+  subtitle?: string;
+  onBack?: () => void;
+  showMonth?: boolean;
+  showSettings?: boolean;
   onOpenNotifications: () => void;
-  onNavigate: (tab: any) => void;
+  onOpenSettings: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
+  title,
+  subtitle,
+  onBack,
+  showMonth = false,
+  showSettings = true,
   onOpenNotifications,
-  onNavigate,
+  onOpenSettings,
 }) => {
-  const {
-    userProfile,
-    soundEnabled,
-    toggleSound,
-    selectedMonth,
-    setSelectedMonth,
-    pinLockEnabled,
-    lockApp,
-  } = useFinance();
+  const { selectedMonth, setSelectedMonth, pinLockEnabled, lockApp } = useFinance();
+  const alerts = useAlerts();
+  const [open, setOpen] = useState(false);
 
-  const [showMonthDropdown, setShowMonthDropdown] = useState(false);
-
-  // Generate last 6 months list
   const months = useMemo(() => {
-    const list: string[] = [];
-    const date = new Date();
-    for (let i = 0; i < 6; i++) {
-      const d = new Date(date.getFullYear(), date.getMonth() - i, 1);
-      const y = d.getFullYear();
-      const m = String(d.getMonth() + 1).padStart(2, '0');
-      list.push(`${y}-${m}`);
-    }
-    return list;
+    const current = getCurrentMonthString();
+    return Array.from({ length: 12 }, (_, i) => shiftMonth(current, -i));
   }, []);
 
-  return (
-    <header className="sticky top-0 z-30 pt-safe-top glass-header border-b border-zinc-200/50 dark:border-zinc-800/50 transition-colors">
-      <div className="px-4 py-2 flex items-center justify-between max-w-lg mx-auto">
-        {/* App Icon + Month Selector Capsule */}
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-xl overflow-hidden shadow-xs border border-amber-500/30 flex-shrink-0 bg-zinc-900">
-            <img src="/favicon.png" alt="Logo" className="w-full h-full object-cover" />
-          </div>
+  const tap = () => {
+    sounds.playPop();
+    sounds.vibrate(10);
+  };
 
+  const [monthLabel, yearLabel] = getMonthName(selectedMonth).split(' ');
+
+  return (
+    <header className="sticky top-0 z-30 pt-safe-top glass-header">
+      <div className="h-14 px-4 flex items-center gap-2">
+        {onBack && (
+          <button
+            onClick={() => {
+              tap();
+              onBack();
+            }}
+            aria-label="Kembali"
+            className="icon-btn -ml-2 text-zinc-900 dark:text-zinc-100"
+          >
+            <ChevronLeft className="w-6 h-6" />
+          </button>
+        )}
+
+        <div className="min-w-0 flex-1">
+          {subtitle && <p className="text-[11px] font-medium text-muted leading-none mb-1">{subtitle}</p>}
+          <h1 className="text-lg font-bold tracking-tight text-zinc-900 dark:text-zinc-50 truncate leading-tight">
+            {title}
+          </h1>
+        </div>
+
+        {showMonth && (
           <div className="relative">
             <button
               onClick={() => {
-                sounds.playPop();
-                sounds.vibrate(10);
-                setShowMonthDropdown(!showMonthDropdown);
+                tap();
+                setOpen(o => !o);
               }}
-              className="min-h-[38px] px-2.5 py-1 rounded-xl bg-zinc-100 dark:bg-zinc-850 hover:bg-zinc-200 dark:hover:bg-zinc-800 flex items-center gap-1.5 text-xs font-bold text-zinc-900 dark:text-zinc-100 transition-all active:scale-95"
+              className="h-9 pl-3 pr-2 rounded-full bg-white dark:bg-zinc-900 border border-zinc-200/80 dark:border-zinc-800 flex items-center gap-1 text-xs font-semibold text-zinc-800 dark:text-zinc-100 active:scale-95 transition-all"
             >
-              <span>{getMonthName(selectedMonth)}</span>
+              <span className="capitalize">
+                {monthLabel.slice(0, 3)} {yearLabel}
+              </span>
               <ChevronDown
-                className={`w-3.5 h-3.5 text-zinc-400 transition-transform duration-200 ${
-                  showMonthDropdown ? 'rotate-180' : ''
-                }`}
+                className={`w-3.5 h-3.5 text-zinc-400 transition-transform ${open ? 'rotate-180' : ''}`}
               />
             </button>
 
-            {/* Month Dropdown Menu */}
-            {showMonthDropdown && (
+            {open && (
               <>
-                <div
-                  className="fixed inset-0 z-40"
-                  onClick={() => setShowMonthDropdown(false)}
-                />
-                <div className="absolute left-0 mt-1.5 w-48 bg-white dark:bg-zinc-900 rounded-2xl shadow-ios-elevated border border-zinc-200 dark:border-zinc-800 py-1 z-50 animate-in fade-in zoom-in-95 duration-150">
+                <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
+                <div className="absolute right-0 mt-2 w-48 max-h-80 overflow-y-auto card shadow-ios-elevated py-1 z-50 animate-pop-in">
                   {months.map(m => (
                     <button
                       key={m}
                       onClick={() => {
-                        sounds.playPop();
-                        sounds.vibrate(12);
+                        tap();
                         setSelectedMonth(m);
-                        setShowMonthDropdown(false);
+                        setOpen(false);
                       }}
-                      className="w-full min-h-[40px] px-3.5 py-2 text-left text-xs font-semibold flex items-center justify-between hover:bg-zinc-100 dark:hover:bg-zinc-800/80 transition-colors text-zinc-800 dark:text-zinc-200"
+                      className="w-full min-h-[40px] px-3.5 text-left text-sm flex items-center justify-between hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-800 dark:text-zinc-200"
                     >
-                      <span>{getMonthName(m)}</span>
-                      {selectedMonth === m && (
-                        <Check className="w-3.5 h-3.5 text-emerald-500" />
-                      )}
+                      <span className={selectedMonth === m ? 'font-semibold' : ''}>{getMonthName(m)}</span>
+                      {selectedMonth === m && <Check className="w-4 h-4 text-emerald-500" />}
                     </button>
                   ))}
                 </div>
               </>
             )}
           </div>
-        </div>
+        )}
 
-        {/* Action icons */}
-        <div className="flex items-center gap-1">
+        {pinLockEnabled && (
           <button
             onClick={() => {
-              toggleSound();
-              sounds.vibrate(10);
+              tap();
+              lockApp();
             }}
-            aria-label={soundEnabled ? 'Mute' : 'Unmute'}
-            className="w-10 h-10 rounded-full flex items-center justify-center text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-850 active:scale-90 transition-all"
+            aria-label="Kunci aplikasi"
+            className="icon-btn"
           >
-            {soundEnabled ? (
-              <Volume2 className="w-4 h-4 text-emerald-500" />
-            ) : (
-              <VolumeX className="w-4 h-4 text-zinc-400" />
-            )}
+            <Lock className="w-[18px] h-[18px]" />
           </button>
+        )}
 
-          <button
-            onClick={() => {
-              sounds.playPop();
-              sounds.vibrate(10);
-              onOpenNotifications();
-            }}
-            aria-label="Notifikasi"
-            className="w-10 h-10 rounded-full flex items-center justify-center text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-850 active:scale-90 transition-all relative"
-          >
-            <Bell className="w-4 h-4" />
-            <span className="w-2 h-2 rounded-full bg-emerald-500 absolute top-2.5 right-2.5 ring-2 ring-white dark:ring-zinc-900" />
-          </button>
-
-          {pinLockEnabled && (
-            <button
-              onClick={() => {
-                sounds.playPop();
-                sounds.vibrate(15);
-                lockApp();
-              }}
-              aria-label="Kunci Aplikasi"
-              title="Kunci Aplikasi"
-              className="w-10 h-10 rounded-full flex items-center justify-center text-amber-500 hover:bg-amber-500/10 active:scale-90 transition-all"
-            >
-              <Lock className="w-4 h-4" />
-            </button>
+        <button
+          onClick={() => {
+            tap();
+            onOpenNotifications();
+          }}
+          aria-label={`Notifikasi${alerts.length ? ` (${alerts.length})` : ''}`}
+          className="icon-btn relative"
+        >
+          <Bell className="w-[18px] h-[18px]" />
+          {alerts.length > 0 && (
+            <span className="absolute top-1.5 right-1.5 min-w-[16px] h-4 px-1 rounded-full bg-rose-500 text-white text-[10px] font-bold leading-4 text-center ring-2 ring-zinc-100 dark:ring-zinc-950">
+              {alerts.length}
+            </span>
           )}
+        </button>
 
+        {showSettings && (
           <button
             onClick={() => {
-              sounds.playPop();
-              sounds.vibrate(10);
-              onNavigate('settings');
+              tap();
+              onOpenSettings();
             }}
             aria-label="Pengaturan"
-            className="w-10 h-10 rounded-full flex items-center justify-center text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-850 active:scale-90 transition-all"
+            className="icon-btn -mr-2"
           >
-            <Settings className="w-4 h-4" />
+            <Settings className="w-[18px] h-[18px]" />
           </button>
-        </div>
+        )}
       </div>
     </header>
   );

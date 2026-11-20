@@ -1,16 +1,15 @@
 import React, { useMemo } from 'react';
 import { useFinance } from '../../context/FinanceContext';
-import { TabType, TransactionType } from '../../types';
+import { TabType } from '../../types';
 import { formatIDR, getTodayDateString } from '../../utils/format';
 import { sounds } from '../../utils/audio';
-import { Eye, EyeOff, ArrowDownLeft, ArrowUpRight, ArrowLeftRight, ChevronRight } from 'lucide-react';
+import { Eye, EyeOff, ChevronRight } from 'lucide-react';
 
 interface BalanceCardProps {
-  onOpenAddModal: (type: TransactionType) => void;
   onNavigate: (tab: TabType | 'recurring') => void;
 }
 
-export const BalanceCard: React.FC<BalanceCardProps> = ({ onOpenAddModal, onNavigate }) => {
+export const BalanceCard: React.FC<BalanceCardProps> = ({ onNavigate }) => {
   const { totalBalance, hideBalance, toggleHideBalance, monthlyStats, transactions } =
     useFinance();
 
@@ -23,12 +22,6 @@ export const BalanceCard: React.FC<BalanceCardProps> = ({ onOpenAddModal, onNavi
 
   const mask = (v: string) => (hideBalance ? 'Rp ••••••' : v);
   const net = monthlyStats.income - monthlyStats.expense;
-
-  const actions: { type: TransactionType; label: string; icon: typeof ArrowUpRight }[] = [
-    { type: 'expense', label: 'Keluar', icon: ArrowUpRight },
-    { type: 'income', label: 'Masuk', icon: ArrowDownLeft },
-    { type: 'transfer', label: 'Transfer', icon: ArrowLeftRight },
-  ];
 
   return (
     <section className="relative overflow-hidden rounded-3xl p-5 text-white bg-gradient-to-br from-emerald-600 via-emerald-700 to-teal-800 shadow-ios-card">
@@ -77,23 +70,6 @@ export const BalanceCard: React.FC<BalanceCardProps> = ({ onOpenAddModal, onNavi
           ))}
         </div>
 
-        {/* Quick actions */}
-        <div className="mt-3 grid grid-cols-3 gap-2">
-          {actions.map(a => (
-            <button
-              key={a.type}
-              onClick={() => {
-                sounds.playPop();
-                sounds.vibrate(12);
-                onOpenAddModal(a.type);
-              }}
-              className="h-11 rounded-xl bg-white/15 hover:bg-white/20 active:scale-95 transition-all flex items-center justify-center gap-1.5 text-sm font-semibold"
-            >
-              <a.icon className="w-4 h-4" />
-              {a.label}
-            </button>
-          ))}
-        </div>
       </div>
     </section>
   );

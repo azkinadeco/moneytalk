@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { useFinance } from '../../context/FinanceContext';
 import { formatIDR, getMonthName } from '../../utils/format';
 import { DynamicIcon } from '../common/DynamicIcon';
+import { HealthScoreCard } from '../dashboard/HealthScoreCard';
 import {
   TrendingUp,
   TrendingDown,
@@ -433,6 +434,8 @@ Catat & kontrol keuangan harianmu dengan Money Talk!`;
           </div>
         ))}
       </div>
+
+      <HealthScoreCard />
 
       {/* Tabbed Interactive Charts Section (Bagan Donut & Grafik) */}
       <div className="card p-4 space-y-4">

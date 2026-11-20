@@ -212,12 +212,9 @@ const MainAppContent: React.FC = () => {
           {currentTab === 'dashboard' && (
             <div className="space-y-4">
               <IosInstallBanner />
-              <BalanceCard
-                onOpenAddModal={handleOpenAddModal}
-                onNavigate={navigate}
-              />
-              <SmartReminderBanner onNavigate={navigate} />
+              <BalanceCard onNavigate={navigate} />
               <QuickShortcutsRow onNavigate={navigate} />
+              <SmartReminderBanner onNavigate={navigate} />
               <QuickBudgetBar onGoToBudgets={() => navigate('goals')} />
               <RecentTransactions
                 onSeeAll={() => navigate('transactions')}
